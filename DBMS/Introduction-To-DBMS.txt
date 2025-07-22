@@ -1,0 +1,86 @@
+🔹 1. Data vs Information
+Data:
+Raw, unprocessed facts (e.g., XYZ, 12)
+➤ No context or meaning
+➤ Example: 45, Ankur, Red
+
+Information:
+Processed data that has meaning (e.g., Your name is Ankur)
+➤ Data + Context = Information
+
+Interview Tip:
+
+Don’t just define data as "facts"; also emphasize its raw nature and lack of context.
+
+🔹 2. Database
+Definition:
+A collection of interrelated data stored in a structured format (usually in tables)
+➤ Example: Student Database, Hospital Database, Multimedia Database
+
+Features:
+1. Stores large amounts of data
+2. Supports multiple tables
+3. Easy retrieval and manipulation
+
+Example Table:
+| ID | Name  | Branch | City    |
+| -- | ----- | ------ | ------- |
+| 1  | Rahul | ECO    | Kolkata |
+| 2  | Raj   | IT     | Mumbai  |
+| 3  | Riti  | CSE    | Delhi   |
+
+🔹 3. File System vs DBMS
+🧾 File System:
+OS-level way of storing and managing data in files
+
+Limitations:
+1. Data Redundancy (duplicate data)
+2. Data Inconsistency (conflicts between multiple copies)
+3. Poor memory utilization
+4. Lack of security
+5. Difficult to update and maintain relationships
+
+Example Trap in Interviews:
+"Is a file system faster than DBMS?"
+✅ Answer: File system can be faster for simple storage, but DBMS excels in concurrent access, security, and data integrity.
+
+🔹 4. What is DBMS?
+DBMS (Database Management System):
+A software system used to create, manage, retrieve, update, and secure databases.
+
+Responsibilities of DBMS:
+1. Provide interface for interaction (SQL)
+2. Ensure data integrity and security
+3. Handle concurrency and backups
+4. Apply rules and constraints
+
+Examples of DBMS:
+🔹 MySQL, PostgreSQL, Oracle DB, SQL Server
+
+🔹 5. Applications of DBMS
+| Sector         | Use Case                                                         |
+| -------------- | ---------------------------------------------------------------- |
+| Colleges   | Student Information System (attendance, marks, personal details) |
+| Banks      | Secure customer data, transactions, account details              |
+| Airlines   | Manage passenger bookings, flight schedules, seat availability   |
+| Hospitals  | Patient records, appointments, prescriptions                     |
+| E-Commerce | Inventory, orders, payment history                               |
+
+
+🔹 6. Why Use DBMS? (Benefits Over File System)
+✅ Reduced redundancy
+✅ Improved data integrity
+✅ Data consistency
+✅ Data security (via authentication)
+✅ Centralized control
+✅ Concurrent access
+✅ Backup and recovery options
+
+🔹 7. Common Interview Traps
+| Question                           | Trap                                                        | How to Answer                                                              |
+| ---------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Why not use Excel instead of DBMS? | Excel is a file system; lacks relationships and query power | Emphasize data relationships, ACID properties, and scalability |
+
+| Can DBMS replace all file systems? | No                                                          | File systems still useful for unstructured data like images, videos        |
+
+| Is DBMS faster than a file system? | Depends                                                     | Explain complex query support and data consistency over speed      |
