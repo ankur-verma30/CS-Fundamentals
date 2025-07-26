@@ -1,0 +1,67 @@
+🧱 Monolith vs 🧩 Microservices
+
+🔍 What is a Monolith?
+➤ A monolith is a single deployable unit that contain the entire application(business logic, database interactions, UI etc.).
+➤Common misconception: Monolith not equals to single machine.
+1. A monolith can scale horizontally over multiple servers.
+2. Still, it is a single codebase, tightly coupled and deployed together.
+
+🧩 What is a Microservice?
+➤ A microservice encapsulates a single business capability, along with its own data and logic.
+➤ Each service is independently deployable, loosely coupled, and may have its own database.
+➤ Clients ofter interact with an API Gateway, not directly with each microservice.
+
+✅ Advantages of Monoliths
+| Benefit                       | Explanation                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| 👥 Ideal for Small Teams  | Easier to manage with limited developers. Lower overhead in coordination.           |
+| ⚙️ Fewer Moving Parts     | No need to manage separate services, APIs, networking layers.                       |
+| 🚀 Simpler Deployment     | One package to test, deploy, and monitor. No version mismatch between services.     |
+| 🧪 Centralized Setup Code | Shared utilities, setup/configuration code don't need duplication.                  |
+| ⚡ Performance             | In-process function calls are faster than inter-service communication over network. |
+
+❌ Disadvantages of Monoliths
+| Drawback                         | Explanation                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| 📚 Onboarding is Hard        | New developers need to understand the full system. High cognitive load.      |
+| 🧩 Tight Coupling            | Changes in one part can unintentionally affect other areas. Hard to isolate. |
+| 🚧 Harder Testing            | Everything touches everything; unit tests require full context.              |
+| 🔄 Frequent Full Deployments | Any change redeploys the whole system, increasing deployment risk.           |
+| 🛑 Single Point of Failure   | If one part crashes (e.g., profile service), entire app might go down.       |
+
+✅ Advantages of Microservices
+| Benefit                             | Explanation                                                                         |
+| ----------------------------------- | ----------------------------------------------------------------------------------- |
+| 📏 Scalable Architecture        | Each microservice can scale independently based on its own load.                    |
+| 🔁 Parallel Development         | Different teams can work on different services without stepping on each other.      |
+| 🧠 Easier Onboarding            | New engineers need to learn only their microservice domain.                         |
+| 📊 Resource Optimization        | Easily identify and scale only the parts of system under load (e.g., chat service). |
+| 🧼 Clear Separation of Concerns | Encourages modular, maintainable design.                                            |
+
+❌ Disadvantages of Microservices
+| Drawback                     | Explanation                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| 🧠 Complex Design        | Good microservices require smart architectural planning.                                  |
+| 🔗 Over-Engineering Risk | If two services talk only to each other, they probably shouldn't be separate.             |
+| 🔄 RPC Overhead          | Communication between services is over the network, adding latency and points of failure. |
+| 🔍 Distributed Debugging | Tracing bugs across services becomes harder (needs observability tools).                  |
+| 🛠️ DevOps Complexity    | Needs containerization, service discovery, load balancing, CI/CD pipelines, etc.          |
+
+🧠 Design Takeaways
+Start with Monolith if:
+1. Small Teams
+2. MVP/Prototype
+3. Rapid iteration needed
+4. Tight integration between features.
+
+Choose Microservices if:
+1. System is large-scale or enterprise level.
+2. Many teams contributing
+3. Performance bottlenecks isolated to domains
+4. High availability and independent deployment are important
+
+💡 In a system design, you're often expected to go with microservices for large systems, but justify it:
+
+➤ Independent scalability
+➤ Parallel team development
+➤ Better fault isolation
