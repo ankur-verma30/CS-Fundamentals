@@ -1,0 +1,327 @@
+🧠 Why SQL?
+We need a language to interact with databases—whether it's to store, retrieve, update, or delete data.
+SQL (Structured Query Language) is the standard language used for interacting with Relational Databases.
+
+With SQL, we can perform:
+
+➤ Create – Create new records or database structures
+➤ Read – Retrieve data from tables
+➤ Update – Modify existing records
+➤ Delete – Remove data
+
+These operations are known as CRUD operations and are essential for any database-driven application.
+
+🧠 What is MySQL?
+MySQL is a Relational Database Management System (RDBMS) that uses SQL as its querying language.
+It is:
+➤ Open-source and widely used in web and enterprise applications
+➤ Known for its speed, reliability, and ease of use
+➤ Maintained by Oracle Corporation
+
+MySQL allows you to:
+➤ Store data in tables
+➤ Establish relationships using primary and foreign keys
+➤ Enforce data integrity and security
+➤ Handle large volumes of structured data efficiently
+
+✅ In short:
+SQL is the language, while MySQL is a software (RDBMS) that understands and executes SQL queries.
+
+🧠 How SQL Helps Us
+SQL (Structured Query Language) enables users to interact with relational databases effectively. It supports a wide range of operations, grouped into the following categories:
+
+✅ 1. Retrieving Data
+➤ SQL allows users to fetch specific and meaningful data from large datasets.
+➤ Users can apply filters, conditions, sorting, and grouping to extract exactly what is needed.
+➤ This is essential for generating reports, dashboards, and data analysis.
+
+✅ 2. Manipulating Data
+➤ SQL provides commands to add, update, and delete records in the database.
+➤ These operations help maintain up-to-date and accurate information.
+➤ It supports bulk updates and conditional changes as well.
+
+✅ 3. Defining Data
+➤ SQL allows the creation and modification of the database structure.
+➤ This includes creating or altering tables, views, indexes, and constraints.
+➤ It ensures the data is stored in an organized and consistent format.
+
+✅ 4. Controlling Data
+➤ SQL supports user access control by allowing database administrators to grant or revoke permissions.
+➤ It ensures that sensitive data is only accessible to authorized users.
+➤ Helps enforce security, privacy, and role-based access.
+
+🧠 Types of SQL Commands
+SQL commands are categorized based on the type of operation they perform on the database:
+
+✅ 1. Data Query Language (DQL)
+➤ Purpose: To retrieve data from the database.
+
+Command: SELECT
+Note: Although it has only one command, it's one of the most frequently used.
+
+✅ 2. Data Manipulation Language (DML)
+➤ Purpose: To manipulate data stored in existing tables.
+Common Operations:
+1. Insert new records
+2. Update existing records
+3. Delete records
+
+Commands: INSERT, UPDATE, DELETE
+Affects: Only the data, not the structure.
+
+✅ 3. Data Definition Language (DDL)
+➤ Purpose: To define or modify the structure of database objects.
+
+Used for:
+Creating tables, indexes, and views
+Modifying table structure
+Deleting database objects
+
+Commands: CREATE, ALTER, DROP, TRUNCATE, RENAME
+Note: DDL commands are usually auto-committed (changes are permanent).
+
+✅ 4. Data Control Language (DCL)
+➤ Purpose: To control access to data and database operations.
+
+Used for:
+Granting permissions to users
+Revoking access when needed
+
+Commands: GRANT, REVOKE
+Helps enforce: Data security and role-based access control.
+
+✅ 5. Transaction Control Language (TCL)
+➤ Purpose: To manage transactions in a database.
+
+Used to:
+Commit changes
+Roll back changes in case of errors
+Ensure consistency of operations
+
+Commands: COMMIT, ROLLBACK, SAVEPOINT
+
+🧠 Understanding Rows and Columns in a Table
+Columns = Attributes / Fields / Characteristics
+Each column in a table represents a specific attribute of the entity.
+Example: In a Student table, columns could be RollNo, Name, Age, Department.
+
+Rows = Records / Tuples
+Each row stores a complete set of data for one instance of the entity.
+In other words, a row contains all the attribute values for a single entity.
+
+🧠 Hierarchy in a Relational Database System
+
+✅ 1. Server
+➤ A database server hosts and manages one or more databases.
+➤ It handles connections, storage, and access control.
+
+✅ 2. Database
+➤ A database is a logical collection of related data.
+➤ You can create multiple databases on a single server.
+➤ Each database is independent and contains its own tables, users, permissions, etc.
+
+✅ 3. Tables
+➤ A database is made up of multiple tables.
+➤ Each table stores data related to a specific entity (e.g., students, employees).
+➤ Tables are structured in rows and columns.
+
+✅ 4. Records (Rows)
+➤ A record (also called a tuple) represents one entry in the table.
+➤ Each row holds data for one instance of the entity.
+
+✅ 5. Attributes (Columns)
+➤ Each record is made up of attributes (columns).
+➤ Attributes represent the properties or characteristics of the entity.
+Example: For a Student record, attributes could be Name, Roll No, Marks, etc.
+
+🔁Server → Databases → Tables → Records → Attributes
+
+🧠 Creation of Database
+➤ We use the CREATE DATABASE statement to create a new database.
+➤ SQL commands are not case-sensitive, but it's good practice to use uppercase for keywords.
+
+✅ Basic Command: 
+CREATE DATABASE database_name;
+
+✅ To Avoid Errors (If Database Already Exists):
+CREATE DATABASE IF NOT EXISTS database_name;
+The IF NOT EXISTS clause is used to prevent errors if the database already exists.
+
+This clause is commonly used with CREATE TABLE as well.
+
+🧠 Deletion of Database
+➤ We use the DROP DATABASE statement to permanently delete a database.
+➤ This removes the entire database, including all:
+1. Tables
+2. Data
+3. Views
+4. Stored procedures
+5. Other objects
+
+It is a DDL (Data Definition Language) command.
+
+✅ Basic Command:
+DROP DATABASE database_name;
+
+✅ To Avoid Errors (If Database Doesn’t Exist):
+DROP DATABASE IF EXISTS database_name;
+
+The IF EXISTS clause helps avoid runtime errors by checking if the database exists before trying to delete it.
+
+🧠 Using a Database
+➤ To work with a specific database, we use the USE statement.
+➤ This command sets the active database for your current session.
+➤ After executing it, all subsequent operations (like creating tables or inserting data) will apply to the selected database.
+
+✅ Command:
+USE database_name;
+
+📝 Note:
+➤ You must use this command before performing any operations on tables if multiple databases exist on the server.
+➤ This helps the DBMS understand which database you’re referring to.
+
+🧠 Showing All Databases
+➤ To view all databases available on the current database server, we use the SHOW DATABASES command.
+➤ It displays a list of all existing databases, whether created by the user or system-defined.
+
+✅ Command:
+SHOW DATABASES;
+
+📝 Note:
+➤ You can only see databases for which you have access privileges.
+➤ This is helpful when working on a shared server or verifying successful creation of a new database.
+
+🧠 Working with Tables
+
+🧠 Creating a Table
+➤ We use the CREATE TABLE statement to define a new table within a database.
+➤ It is a DDL command.
+➤ A table consists of columns, each with a data type and optional constraints to enforce rules on the data.
+
+✅ Syntax:
+CREATE TABLE table_name (
+    column1 data_type1 constraint1,
+    column2 data_type2 constraint2,
+    column3 data_type3 constraint3,
+    ...
+);
+
+✅Example:
+CREATE TABLE course(
+cid INT,
+cname VARCHAR(50)
+);
+
+📝 Explanation:
+➤ table_name: Name of the table you want to create.
+➤ column1, column2, ...: Names of the columns (attributes).
+➤ data_type: Defines the type of data (e.g., INT, VARCHAR, DATE).
+➤ constraint (optional): Rules like PRIMARY KEY, NOT NULL, UNIQUE, etc.
+
+🧠 Inserting Values into a Table
+➤ INSERT is a DML (Data Manipulation Language) command.
+➤ It is used to add new records (rows) into an existing table.
+
+✅ Syntax:
+INSERT INTO table_name (column1, column2, ..., columnN)
+VALUES (value1, value2, ..., valueN);
+📝 Key Points:
+➤ Column names should match the order of values provided.
+➤ You must ensure the values follow the data type and constraint rules defined during table creation.
+
+➤ If you want to insert into all columns, you can skip the column list:
+INSERT INTO table_name VALUES (value1, value2, ..., valueN);
+
+✅Example:
+INSERT INTO course VALUES
+(1,"Ankur Verma"),
+(2,"Isha Kumari"),
+(3,"Deepak Yadav");
+
+🧠 Viewing Data from a Table
+➤ We use the SELECT command to retrieve data from one or more columns in a table.
+➤ It is a DQL (Data Query Language) command.
+
+✅ Use Cases:
+🔹 To view specific columns:
+SELECT column_name1, column_name2 FROM table_name;
+Example:
+SELECT cid FROM course;
+(This displays only the cid column from the course table.)
+
+🔹 To view all columns and all records:
+SELECT * FROM table_name;
+Example:
+SELECT * FROM course;
+(This displays the entire table, including all columns and all rows.)
+
+📝 Note:
+➤ * is a wildcard that means "all columns".
+➤ The result set may be filtered or sorted further using clauses like WHERE, ORDER BY, etc.
+
+🧠 Viewing All Tables in a Database
+➤ We use the SHOW TABLES command to list all tables present in the currently selected database.
+➤ It helps verify if a table was created successfully or to explore existing tables.
+
+✅ Command:
+SHOW TABLES;
+
+📝 Note:
+➤ You must first select a database using the USE database_name; command before running SHOW TABLES.
+➤ Only tables within the currently active database will be shown.
+➤ Useful for database exploration and management.
+
+🧠 Data Types in SQL
+SQL provides various data types to define the type of data that can be stored in each column of a table.
+
+✅ 1. Numeric Data Types
+Used to store numbers (integers or decimals).
+
+➤ INT / INTEGER – Whole numbers (INT_MIN to INT_MAX)
+➤ SMALLINT – Smaller range of integers
+➤ BIGINT – Larger range of integers
+➤ DECIMAL(p,s) – Fixed-point number with precision p and scale s(8-byte) (e.g., DECIMAL(5,2) → 123.45)
+➤ NUMERIC(p,s) – Similar to DECIMAL, used for precise financial calculations
+➤ FLOAT / DOUBLE – Approximate floating-point numbers (4-byte) (not always precise)
+
+By default all the numeric dataypes can have negative as well as positive values. This restrict the range so if we know there is only +ve values which is stored we use UNSIGNED attribute (0-255).
+✅Example: Salary can never be in negative or age also.
+
+Command:
+CREATE TABLE example1(
+    id INT UNSIGNED
+);
+
+✅ 2. Character/String Data Types
+Used to store text.
+
+➤ CHAR(n) – Fixed-length string range(0-255) (e.g., CHAR(10) stores exactly 10 characters)
+➤ VARCHAR(n) – Variable-length string range(0-255) (up to n characters)
+➤ TEXT – Large text blocks (no fixed limit like VARCHAR)
+
+✅ 3. Date and Time Data Types
+Used to store date/time values.
+
+➤ DATE – Stores a date (YYYY-MM-DD)
+➤ TIME – Stores a time (HH:MM:SS)
+➤ DATETIME – Stores both date and time
+➤ TIMESTAMP – Similar to DATETIME, often used for auto-recording date/time of entry
+
+✅ 4. Boolean Data Type
+Used for true/false values.
+
+BOOLEAN / BOOL – Stores TRUE or FALSE (internally stored as 1 or 0)
+
+✅ 5. Binary Data Types
+Used to store binary data (e.g., images, files).
+
+➤ BINARY(n) – Fixed-length binary data
+➤ VARBINARY(n) – Variable-length binary data
+➤ BLOB – Binary Large Object, used to store large binary files like images or documents
+
+📝 Tips for Interviews:
+➤ Use VARCHAR over CHAR for variable-length strings to save space.
+➤ Prefer DECIMAL/NUMERIC over FLOAT for money-related values to maintain precision.
+➤ TIMESTAMP is auto-updated on row modification (useful for tracking updates).
+
+

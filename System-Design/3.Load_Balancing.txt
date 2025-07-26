@@ -1,0 +1,83 @@
+🔹 1. What is Consistent Hashing?
+🔑 A load balancing technique used in distributed systems to minimize data re-distribution when servers are added or removed.
+
+➤ It maps both servers and data(requests) onto a circular hash ring.
+➤ Used in distributed caches(like Redis, Memcached), database (like Cassandra), and load balancers.
+
+🧩 Problem:
+➤ You have a working algorithm hosted on one computers(server).
+➤ As traffic increases, you add more servers.
+➤ You need to distribute user requests across these multiple servers.
+
+❗ Challenge:
+If you use basic hashing (e.g. hash(key) %N):
+➤ Adding/removing a server changes N, which:
+    ➤Causes cache misses, destroys request stickiness, and increase latency.
+
+🔹 3. Naive Hashing Example
+Let's Say:
+You have 4 servers -> hash(request_id) % 4
+Works well, evenly distributes requests
+
+But when a 5th server is added:
+➤ You now do hash(request_id) % 5.
+➤ Result: All previous assignments break
+➤ 100% of key may remap -> destroying cache locality.
+
+🔹 4. Key Terms
+| Term              | Meaning                                                     |
+| ----------------- | ----------------------------------------------------------- |
+| **Request ID**    | Unique identifier (can be user ID or session ID)            |
+| **Hash Function** | Converts request ID into a number in range `0 to M-1`       |
+| **Bucket/Server** | Target destination that handles the request                 |
+| **Stickiness**    | The property of a user consistently hitting the same server |
+
+🔹 5. Why This Matters
+➤ Caches are server-local. If user A always gets server S3.
+    ➤ You can store their profile in server S3's local cache.
+    ➤ If server assignments change, cache is useless -> leads to slow reads.
+➤ Changing the modulo N breaks request-server mapping consistency.
+➤ ❗ Goal:Minimize remapping when servers are added/removed.
+
+🔹 6. Consistent Hashing: Core Idea
+🔁 Hash both servers and keys oto a circular hash ring (0 to MAX).
+
+🔁Steps:
+➤ Hash server names (like "S1", "S2") -> place them on the ring.
+➤ Hash the request ID (key) -> find its position on the ring.
+➤ Move clockwise to find the first server with a hash >= key hash.
+➤ That server handles the reqeust.
+
+🧠 Key Insight:
+➤ Only a small fraction of keys get remapped when a server is added or removed.
+❗ Compared to 100% in mod N strategy.
+
+🔹 7. Pie Chart Illustration (Visualizing Hash Ring)
+➤ Consider hash space as a pie(circle) of numbers.
+➤ Servers divide the pie into ranges.
+➤ Each server is reponsible for a slice.
+➤ When adding a new server:
+    ➤ Take a little load from each server (not from one single server).
+    ➤ Total redistribution is minimal and evenly spread.
+
+🔹 8. Benefits of Consistent Hashing
+| Benefit                   | Why It Matters                                             |
+| ------------------------- | ---------------------------------------------------------- |
+| 🔄 Minimal remapping      | Only affects a small subset of keys                        |
+| 💾 Better cache hit ratio | Stickiness ensures user hits same server                   |
+| ⚖️ Load balancing         | Uniform distribution of requests                           |
+| ⚡ High availability       | Easy to add/remove servers on the fly                      |
+| 🧩 Scalability            | Works well for distributed databases, CDNs, load balancers |
+
+🔹 9. Virtual Nodes (Advanced Optimization)
+➤ Each physical server is represented by multiple virtual nodes on the ring.
+➤ Helps handle uneven server distribution.
+➤ Ensures better load distribution if some servers are more powerful.
+
+Example: Server S1 may have 3 virtual positions on the ring; S2 may have 5.
+
+🔹 10. Real-World Applications
+🔹 Distributed Caches: Memcached, Redis Cluster
+🔹 Distributed Databases: Cassandra, DynamoDB
+🔹 Load Balancers: NGINX, Envoy
+🔹 CDNs: Cache routing based on user ID/location

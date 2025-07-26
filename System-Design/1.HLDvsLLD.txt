@@ -1,0 +1,247 @@
+🎯 Introduction
+Analogy used: Building a system compared to opening and running a pizza restaurant.
+
+📌 1. Vertical Scaling
+Scenario: A single chef can't handle increasing customer orders.
+Initial Fix: Ask chef to work harder and optimize current resources.
+
+Concept: Vertical Scaling
+Increase power of a single machine (e.g., CPU, RAM) instead of adding more.
+Equivalent to paying the chef more and expecting higher output.
+
+📌 2. Preprocessing (Using Cron Jobs)
+Example: Make pizza dough at 4 AM when there are no orders.
+Purpose: Prepare components during non-peak hours.
+
+Concept: Preprocessing with Cron Job
+Schedule tasks during off-peak to free up resources during peak times.
+
+📌 3. Backup Systems
+Problem: If the chef is sick, the business halts.
+Solution: Have a backup chef.
+
+Concept: Avoid Single Point of Failure
+Keep backup servers/resources to handle outages.
+
+Similar to Master-Slave Architecture in systems.
+
+📌 4. Horizontal Scaling
+Growth: Add more chefs as business grows.
+Concept: Horizontal Scaling
+Add more machines/resources of similar capacity to handle increased load.
+
+📌 5. Microservices Architecture
+Scenario: Chef 1 & 3 good at pizza, Chef 2 good at garlic bread.
+Naive routing: Random assignment.
+
+Optimized routing:
+Pizza → Chef 1 & 3
+Garlic Bread → Chef 2
+
+Concept: Microservices
+
+Divide responsibilities based on expertise.
+Each service (team) focuses on a single function.
+Easier to scale and maintain.
+
+📌 6. Distributed Systems
+Problem: What if shop loses power or license?
+Solution: Open another pizza shop in a different area.
+
+Concept: Distributed Systems
+Multiple shops/servers handle load and increase fault tolerance.
+Improved latency by serving customers from geographically closer servers.
+
+Similar to CDNs or edge servers in large-scale systems.
+
+📌 7. Load Balancing
+Scenario: Two shops, orders should go to the one that can deliver faster.
+
+Concept: Load Balancer
+
+Routes requests intelligently based on load, latency, etc.
+Reduces bottlenecks and improves performance.
+
+📌 8. Decoupling Systems
+Scenario: Delivery agent doesn't need to know if it's pizza or burger.
+
+Concept: Decoupling
+Separate concerns (e.g., restaurant and delivery service).
+Systems can evolve independently.
+Increases flexibility and testability.
+
+📌 9. Logging & Metrics
+Scenario: Faulty oven → slower pizza making. Faulty bike → late deliveries.
+
+Concept: Observability (Logs & Metrics)
+Log events, track timings.
+Extract insights and monitor system health.
+
+📌 10. Extensibility
+Scenario: Same delivery agent can deliver burgers in the future.
+
+Concept: Extensible Systems
+Design components generically to allow future changes.
+Reuse components for different products/use-cases.
+
+✅Summary
+| Real-World Example     | System Design Concept        |
+| ---------------------- | ---------------------------- |
+| One chef               | Vertical Scaling             |
+| Backup chef            | Fault Tolerance / Redundancy |
+| More chefs             | Horizontal Scaling           |
+| Chefs with specialties | Microservices Architecture   |
+| Multiple shops         | Distributed Systems          |
+| Smart order routing    | Load Balancer                |
+| Separate delivery      | Decoupling                   |
+| Oven/bike problems     | Logging & Monitoring         |
+| Burger delivery        | Extensibility                |
+
+
+🔹 1. HLD vs LLD
+➤ High-Level Design (HLD)
+Focuses on the architecture of the system.
+Defines components, services, communication, and high-level data flow.
+Audience: Architects, senior engineers, product stakeholders.
+
+Output:
+System architecture diagrams
+Database choices
+APIs between components
+Decisions about scaling, caching, etc.
+
+➤ Low-Level Design (LLD)
+Focuses on the implementation details.
+Includes class diagrams, database schema, method signatures, module-level logic.
+Audience: Developers and tech leads.
+
+Output:
+Class designs, pseudocode
+SQL schema with constraints
+Interface design
+
+| Aspect         | HLD                           | LLD                            |
+| -------------- | ----------------------------- | ------------------------------ |
+| Abstraction    | High-level                    | Low-level (detailed logic)     |
+| Focus          | Components & communication    | Classes, functions, algorithms |
+| Example Output | Load balancers, microservices | Class diagrams, function logic |
+
+🔹 2. System Design Interview Structure
+Most system design interviews follow this structure:
+
+1. Clarify Requirements
+Functional: What should the system do?
+
+Non-functional: Scale? Real-time? Fault-tolerant?
+🟡 Tip: Always ask clarifying questions. Define scope first.
+
+2. Define Constraints & Assumptions
+Users per day?
+Peak traffic?
+Read/write ratio?
+Latency expectations?
+
+3. High-Level Architecture
+Identify major components:
+Load Balancer
+Application Servers
+Databases
+Caches
+Message Queues
+Draw diagrams. Justify each component.
+
+4. Deep Dive Into Key Components
+E.g., Feed generation logic, sharding strategy, rate-limiting mechanism, etc.
+
+5. Address Bottlenecks and Trade-offs
+What if traffic doubles?
+
+What’s the single point of failure?
+
+6. Non-Functional Aspects
+Availability, latency, reliability, cost, maintainability.
+
+7. Summary
+Recap system and justify design decisions.
+
+🔹 3. Non-Functional Requirements (NFRs)
+These define how the system should behave under various conditions:
+
+🔸 Scalability
+Ability to handle increasing load.
+Horizontal scaling: Add more machines.
+Vertical scaling: More powerful machine.
+Concepts: Load balancing, sharding, partitioning, auto-scaling.
+
+🔸 Availability
+System’s uptime—how often it’s operational.
+Measured in “nines” (e.g., 99.9% uptime = ~8.76 hrs/year downtime).
+
+Techniques:
+Redundancy
+Failover systems
+Health checks
+Active-active replication
+
+🔸 Reliability
+System performs consistently and without failure.
+Related to durability: Data should not be lost.
+
+Ensure using:
+Data replication
+Backups
+Retry mechanisms
+
+🔸 Latency
+Time taken to respond to a request.
+Target: Low and predictable.
+
+Techniques:
+Caching (Redis, CDN)
+Load balancing
+Proximity-based routing (CDNs, edge servers)
+
+🔸 Throughput
+Number of requests system can handle per unit time.
+Related to capacity.
+
+Improved by:
+Async processing
+Parallelism
+Database optimization
+
+🔹 4. Important Trade-offs
+These are crucial during system design interviews. Know what you gain vs. what you lose.
+
+🔸 Consistency vs Availability (CAP Theorem)
+In a distributed system, you can only have 2 out of 3:
+
+Consistency (every read gets latest write)
+Availability (every request gets a response)
+Partition Tolerance (system continues working if network splits)
+
+❗ Trade-off:
+Choose Consistency over Availability if data correctness is critical (e.g., banking).
+Choose Availability over Consistency if uptime is critical (e.g., social feed).
+
+🔸 Latency vs Throughput
+Low Latency: Fast individual requests.
+High Throughput: Handle more requests/sec.
+
+❗ Trade-off:
+Increasing throughput might batch or queue requests, increasing latency.
+Example: Real-time chat (low latency) vs. log processing system (high throughput).
+
+🔸 Monolith vs Microservices
+Monolith: Easier to develop, harder to scale.
+
+Microservices: Scalable, deployable independently, but complex to manage.
+
+🔸 Caching vs Freshness
+Caching improves speed but may serve stale data.
+
+Choose based on:
+How fast data changes
+User tolerance for old data
+
+

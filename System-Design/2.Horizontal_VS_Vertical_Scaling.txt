@@ -1,0 +1,59 @@
+🔹 1. What Is System Design?
+➤ Designing a software that can serve many users reliably and effeciently.
+➤ Think beyond a single computer- design for real-world usuage, failures, scaling, and performance.
+
+🔹 2. From Code to System
+🧩 Scenario:
+➤ You wrote an algorithm/code on your personal computer.
+➤ People want to use it -> You need to make it accessible.
+
+✅ Solution: Expose the code via the Internet
+🔸 API (Application Programming Interface):
+
+➤ Interface exposed over the internet so others can send requests and receive responses.
+➤ You no longer run code manually - your server listens and responds to requests automatically.
+
+🔹 3. Self-Hosting vs Cloud Hosting
+🖥️ Self-hosting on personal machine:
+
+➤ Setup servers and databases yourself.
+➤ Problems:
+1. Power loss= service outage
+2. No redundancy or fault-tolerance
+3. Complex configuration for endpoints
+
+☁️ Cloud Hosting:
+➤ Rent computation power from providers (e.g. AWS, GCP, Azure).
+➤ Cloud = A collection of remote computers( data centers) provided as a service.
+
+Benifits of Cloud:
+1. Remote access
+2. Reliability
+3. Scalability
+4. Easy backups and recovery
+5. Infrastructure management handled by the providers
+
+🔹 4. Scalability
+⚙️ Definition:
+Ability of a system to handle increased load (traffic, users, data).
+
+🔹 5. Vertical vs Horizontal Scaling
+| Feature           | Vertical Scaling        | Horizontal Scaling                 |
+| ----------------- | ----------------------- | ---------------------------------- |
+| Scale Method      | Bigger machine          | More machines                      |
+| Load Balancing    | Not required            | Required                           |
+| Failure Tolerance | Single Point of Failure | Resilient                          |
+| Communication     | Interprocess (Fast)     | Network (Slow)                     |
+| Data Consistency  | Easy to maintain        | Hard to ensure                     |
+| Cost Efficiency   | Expensive after a limit | Scales cost-effectively            |
+| Growth Limitation | Hardware limit          | Near-infinite (with orchestration) |
+
+🔹 7. Hybrid Approach
+➤ Real-world systems combine both:
+➤ Use powerful servers (vertical) in a distributed setup (horizontal).
+
+For example, deploy large servers in a horizontally scaled architecture.
+
+📌 Strategy:
+➤ Start with vertical scaling (cheaper for small systems).
+➤ When traffic grows → switch to horizontal for high availability and fault tolerance.

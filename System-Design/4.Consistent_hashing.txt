@@ -1,0 +1,91 @@
+🧠 Consistent Hashing
+
+🔹 1. Problem Definition
+❌ What’s Not the Problem:
+Not load balancing in the traditional sense.
+
+✅ Real Problem:
+When adding/removing servers, a naive hash function remaps almost all keys to new servers → destroys cache locality and stickiness.
+
+🔹 2. Naive Approach Fails
+➤ Using hash(request_id) % N:
+➤ Adding/removing a server changes N.
+➤ Causes complete remapping of all request-server mappings.
+➤ Results in cache misses and high latency.
+
+❗ Very inefficient for scalable systems.
+
+🔹 3. Consistent Hashing: The Ring Model
+📌 Core Concept:
+➤ Imagine the hash space [0, M-1] laid out as a circle.
+➤ Both requests and servers are hashed to positions on the ring.
+
+🔁 Mapping Rules:
+➤ Hash(request_id) → maps to a point on the ring.
+➤ Hash(server_id) → server also maps to a point.
+➤ A request is routed clockwise to the next server on the ring.
+
+4. Example Walkthrough
+➤ Let’s say M = 30.
+➤ Servers: S1, S2, S3, S4 → hashed to ring positions like 19, 5, 23, 28.
+➤ Request hash(id) = 7 → goes to first server clockwise (e.g., S2 at 19).
+➤ Requests are evenly distributed assuming uniform hashing.
+
+🔹 5. Why It Works
+🎯 Load Distribution:
+➤ Because hashing is uniform, servers get approximately equal loads.
+➤ Each server gets requests from the arc before its point on the ring.
+
+🔄 On Adding Server:
+➤ Only requests that now land before the new server’s position shift to it.
+➤ Minimal movement of keys.
+
+❌ On Removing Server:
+➤ Its requests are rerouted to the next server clockwise.
+➤ Again, only a small subset of keys remapped.
+
+🔹 6. Real Problem: Uneven Distribution
+➤ Even with uniform hashing:
+➤ If you only have a few servers, distribution might be skewed.
+
+Example:
+S1 ends up handling 50% of requests due to unlucky hash positioning.
+
+🔹 7. Solution: Virtual Nodes
+💡 Concept:
+Instead of one point per server, create multiple virtual nodes per server.
+
+⚙️ How:
+➤ Hash the same server ID multiple times using K different hash functions:
+➤ H1(S1), H2(S1), ..., Hk(S1) → server appears at K points on the ring.
+
+🔁 Benefits:
+➤ Smooths out load imbalances.
+➤ Adds redundancy.
+➤ With log(N) virtual nodes per server:
+➤ Expected load distribution is nearly uniform.
+
+🔹 8. On Server Addition or Failure
+🟢 Add Server:
+➤ Add K virtual nodes.
+➤ Only the arcs between those nodes and their previous clockwise neighbors are affected.
+
+🔴 Remove Server:
+➤ Remove K virtual nodes.
+➤ Requests served by them get redistributed evenly to other nodes.
+
+🔹 9. Key Takeaways
+| Feature                 | Description                                         |
+| ----------------------- | --------------------------------------------------- |
+| Stickiness          | Request consistently goes to the same server.       |
+| Minimal Rebalancing | Only a few keys remapped on server change.          |
+| Cache Locality      | Preserved due to sticky mapping.                    |
+| Load Balancing      | Uniform with enough virtual nodes.                  |
+| Fault Tolerance     | Easy recovery by redistributing only affected arcs. |
+
+🔹 10. Applications of Consistent Hashing
+➤ 🔹 Distributed Caches: Redis Cluster, Memcached
+➤ 🔹 Databases: DynamoDB, Cassandra
+➤ 🔹 CDNs: Efficient edge request routing
+➤ 🔹 Sharded Systems: Microservices with session stickiness
+➤ 🔹 Load Balancers: NGINX or custom balancers in large infra
