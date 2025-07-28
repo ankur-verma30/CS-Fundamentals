@@ -1,0 +1,58 @@
+🔑 What is Sharding?
+Sharding = Horizontal partitioning of a database.
+➤ You split based on one attribute (e.g. user_id , location, etc.)
+➤ Each partition or "shard" is stored on a different database/server.
+➤ It's like dividing a pizza - each slice(shard) is served by a different friend (server).
+
+✅ Benefits of Sharding
+1. Scalability: Data and request are split across machines -> better performance.
+2. Isolation: Each shard handles a portion of data -> imporved reliability.
+3. Faster queries: Especially if the query hits only one shard.
+4. Write/Read Optimization: Can write/read to specific shards -> less bottlenecking.
+5. Hierarchical Sharding: You can further shard a heavy shard -> scalable flexibility.
+
+⚠️ Challenges of Sharding
+1. Cross-Shard Joins: Expensive to query across multiple shards.
+2. Static Allocation: Traditional sharding(by range/mod) is inflexible. Adding/removing shard is hard.
+3. Data Imbalance: Some shards become overloaded(hotspots).
+4. Failure Recovery: If a shard goes down, data could be unavailable unless there's replication(e.g. master-slave replication).
+
+💡 Consistent Hashing: Solution to Inflexibility
+Traditional sharding uses modulus(e.g. user_id % 4) -> hard to change number of servers without major reshuffling.
+
+Consistent Hashing solves this:
+1. Data and servers are placed on a ring using a hash function.
+2. Each piece of data goes to the next server in clockwise direction.
+3. When a server is added or removed, only a small portion of data moves.
+4. Used in system like Memacached, Cassandra, etc.
+
+🎯 Simple Diagram of Consistent Hashing Ring
+Here's a simplified version of how it looks:
+         +----------------------+
+        /                      \
+       |         Node A         |
+       |      (Hash: 0x10)      |
+        \                      /
+         +--------+  +--------+
+                  |  |
+    Node D   <----+  +---->   Node B
+   (0xF0)               (0x40)
+                  |  |
+         +--------+  +--------+
+        /                      \
+       |         Node C         |
+       |      (Hash: 0x80)      |
+        \                      /
+         +----------------------+
+
+🌀 How it Works:
+➤ Hash space is a circle (like a clock).
+➤ Each node is placed on the ring using its hash.
+➤ A data item (e.g. user ID) is hashed -> goes to the next node clockwise.
+➤ Only nearby ranges are affected when nodes are added/removed -> minimal data movement.
+
+📌 Practical Tips
+➤ Don't start with sharding unless necessary.
+➤ Indexing or using managed NoSQL solutions is often sufficent.
+➤ If you do shard, consistent hashing or hierarchical sharding can prevent rigid setups.
+

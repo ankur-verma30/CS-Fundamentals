@@ -1,0 +1,102 @@
+🧠 What is a Cache?
+A cache is a high-speed data storage layer that stores a subset of data, typically transient in nature, so that future requests for that data are served faster than accessing the primary storage location(usually a database).
+➤ Goal: Avoid recomputation or repeated database lookups.
+➤ Benefits: Reduce latency, increase throughput, and saves computational cost.
+
+📦 Caching Use Case Example (Instagram News Feed)
+Imagine a user opening their Instagram feed:
+1. Client reqeust the feed -> server receives the request.
+2. Server queries DB: get followed users & their posts.
+3. DB responds -> server formats and sends back response.
+
+Latency Breakdown:
+| Step            | Time       |
+| --------------- | ---------- |
+| Client → Server | 100 ms     |
+| Server → DB     | 10 ms      |
+| DB → Server     | 10 ms      |
+| Server → Client | 100 ms     |
+| Total           | 220 ms     |
+
+🚀 Where Caching Helps?
+The biggest optimization potential lies in server <-> database interactions.
+➤ If similary users often request similary feeds, cache the result.
+➤ Next time a user from the cohort makes a request, return cached data.
+Result:
+➤ Reduce DB access latency from 10ms -> 1ms.
+➤ Overall latency reduced y 90%.
+
+⚙️ Generalized Caching Benefits
+| Benefit                 | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| ⏱️ Reduced Latency      | Memory is much faster than disk-based DBs.     |
+| 📉 Reduced Load         | Fewer DB queries = more DB capacity available. |
+| 🔁 Avoid Repeat Work    | Reuse expensive computations/queries.          |
+| 📲 Client-Side Benefits | Cache at the device level (e.g., mobile feed). |
+
+❗ Why Not Cache Everything?
+You can't store everything in cache due to:
+➤ Memory limitations
+➤ Cost of memory(RAM is expensive)
+➤ Volatility of data(data may change frequently)
+Instead, cache frequently accessed ("hot") data.
+
+🔄 Cache Eviction Policies
+Caches have limited size, so when full, data must be evicted to make space for new entries.
+
+Popular Cache Eviction Policies:
+| Policy                          | Description                                                |
+| ------------------------------- | ---------------------------------------------------------- |
+| LRU (Least Recently Used)   | Evict data that hasn't been accessed recently.             |
+| LFU (Least Frequently Used) | Evict data that is used less frequently.                   |
+| FIFO                        | Evict the oldest data first.                               |
+| Custom / ML-based           | Advanced policies using custom logic or prediction models. |
+
+🖊️ Write Policies (Data Updates)
+When a write/update happens to the database:
+➤ Should cache be updated immediately.
+➤ Or should it be invalidated and refreshed later?
+
+Strategies:
+| Policy            | Description                                   |
+| ----------------- | --------------------------------------------- |
+| Write-through | Update cache and DB at the same time.     |
+| Write-back    | Update cache first; write to DB later.        |
+| Write-around  | Write only to DB; cache updated on next read. |
+
+🔁 Consistency Problems: Eventual Consistency
+Caches are often eventually consistent, meaning:
+➤ Cache may not reflect the most up-to-date data from the DB.
+➤ Useful for data like video, views, likes, etc.
+Critical systems(e.g. financial apps) should avoid stale cache data.
+
+🔁 Thrashing Problem (Poor Hit Rate)
+Imagine this pattern:
+Cache size=3
+Requests: 1 -> 2 -> 3 -> 4 -> 1 -> 2 -> 3 -> 4
+
+Each new request evicts the least recently used, creating a loop of useless cache replacements. This is called cache thrashing.
+
+Mitigation:
+➤ Use smarter policies
+➤ Understand access patterns
+
+🗺️ Cache Placement Strategies
+| Placement                | Description                                                             |
+| ------------------------ | ----------------------------------------------------------------------- |
+| In-memory (local)    | Closest to application, fastest response (e.g., Python dict, Java map). |
+| Client-side cache    | Caching in the browser/app for instant reuse.                           |
+| Database-level cache | Built-in DB cache (e.g., PostgreSQL buffer cache).                      |
+| Distributed cache    | Shared, scalable, independent system (e.g., Redis, Memcached).          |
+In large companies all four method are used for caching.
+
+🧱 Caching in Production Systems
+In real system, all layers are used:
+➤ Client-side(device)
+➤ App-level memory(in-process cache)
+➤ Shared distributed cache(e.g. Redis)
+➤ DB's internal cache
+
+
+
+

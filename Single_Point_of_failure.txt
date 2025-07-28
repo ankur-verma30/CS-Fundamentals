@@ -1,0 +1,68 @@
+🧠 What is a Single Point of Failure (SPOF)?
+A Single Point of Failure is any component in the system whose failure would cause the entire system to stop functioning.
+
+🔥 Real-Life Analogy:
+➤ Humanity's SPOF? Earth. If Earth is destroyed(asteroid hit), humanity is wiped out.
+➤ In a story: If a key character must live for the story to progress, they are a SPOF.
+
+💼 SPOF in System Design 
+In interviews, once you have covered:
+➤ Services
+➤ Interactions
+➤ Requirements
+
+Then resiliency is tested. The question becomes: What happens if one component fails?
+
+If failure of one part takes down the whole system, your design is not resilient.
+
+🧱 Examples of SPOFs and Solutions
+1. Database
+Problem: Single DB instance -> DB crash = System crash.
+Solution: Add a replica(master-slave architecture).
+➤ Writes to the master.
+➤ Reads from slaves(optional).
+➤ Ensures data durability and redundancy.
+🧮 Probability improvement:
+If P= Probability of 1 DB failing.
+Then failure of both master + slave = p^2(much smaller).
+
+2. Application Server
+Problem: One server handles all traffic. If it goes down, system craches.
+Solution: Add multiple server nodes(Horizontal scaling).
+➤ Uses load balancer to distribute traffic.
+➤ All nodes serve same purpose(stateless services).
+
+3. Load Balancer
+Problem: Single load balancer= SPOF
+Solution: Add multiple load balancers.
+➤ Use DNS-level round-robin to provide multiple IPs for same hostname.
+➤ E.g. facebook.com resolves to several IPs.
+➤ Traffic split across all load balancers.
+
+4. DNS
+Even DNS can fail
+Use redundant DNS providers(e.g. Clouldflare + AWS Route 53).
+
+5. Region-level SPOF
+All systems in one region or data center is risky.
+If natural disaster or power failure occurs, system goes down.
+✅Solution: Deploy in multiple regions(geo-redundancy).
+
+📋 General Techniques to Avoid SPOFs
+| Risk Area         | Solution                                         |
+| ----------------- | ------------------------------------------------ |
+| Single DB         | Replication (Master-Slave)                       |
+| Single App Server | Horizontal scaling (Multiple nodes)              |
+| Load Balancer     | Use multiple + DNS failover                      |
+| Coordinator Node  | Multiple coordinators (e.g., ZooKeeper ensemble) |
+| Region Outage     | Multi-region deployment                          |
+
+⚙️ Tools & Concepts That Help
+➤ Replication (Master-Slave, Multi-Master)
+➤ Load Balancing
+➤ DNS Round Robin
+➤ Failover Mechanisms
+➤ Auto-scaling Groups
+➤ Chaos Engineering (e.g., Netflix Chaos Monkey)
+
+🧪 Netflix’s Chaos Monkey randomly kills services in production to test resilience
