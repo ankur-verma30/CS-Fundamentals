@@ -1,0 +1,45 @@
+Content Delivery Networks (CDNs)
+Goal: Make systems cheaper and faster by serving static content closer to users.
+
+🔍 Prerequisites
+Caching: Understanding basic caching mechanism.
+Distributed Systems: General idea of geographically spread systems.
+
+🌐 Step-by-Step Walkthrough of the Concept
+1. Initial Setup Example
+➤ User visits a website like website.io
+➤ DNS resolves the domain to an IP.
+➤ The browser connects to the server to fetch the HTML page.
+
+2. Why Caching is Needed
+HTML pages can be cached in local storage or memory for faster access.
+A server returns these cached responses directly.
+
+3. Problems with Centralized Caching
+➤ Latency: One server location(e.g. India) may be fast for Indian users, but slow for US or Japan users.
+➤ Regulations: Some data is legally allowed to be served only in specific regions(e.g. region-specific movies).
+
+4. Solution: Geo-Distributed Caching(CDN)
+➤ Caches are distributed globally.
+➤ Each region has a local cache node(or edge server).
+➤ These nodes store frequently accessed, locally relevant content.
+
+✅ Benefits of CDNs
+➤ Low latency for users around the world.
+➤ Compliance with local data laws.
+➤ Relevant content delivery(India gets Indian content; US gets US content).
+➤ Faster load times -> Better user experience and trust.
+➤ Cost-efficient for bussiness.
+
+🧠 Important Concepts
+➤ A CDN cache is a type of server with a file system and IP.
+➤ It can be controlled and updated by a central server.
+➤ Content in CDNs is usually static: HTML, CSS, JS, images, videos.
+
+🛠️ Real-World Example
+➤ Amazon CloudFront(CDN service by AWS)
+➤ Integrates with S3.
+➤ Automatically updates when a new file is uploaded.
+
+⚡ TL;DR (Too Long; Didn't Read)
+A Content Delivery Network (CDN) is a geographically distributed system of cache servers that stores static content close to users to ensure fast, cheap, and region-compliant data delivery.
