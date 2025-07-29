@@ -1,0 +1,102 @@
+🧠Pub/Sub Architecture
+
+✅ Problem with Request-Response in Microservices
+Scenario:
+➤ Services S1,S0,S2,S3,S4
+➤ Client -> S1 (makes request)
+➤ S1 needs to notify S0 and S2 ( order doesn't matter)
+➤ S2 then notifies S3 and S4 (again, order doesn't matter)
+
+Request-Response Flow:
+➤ S1 asynchronously calls S0 and S2
+➤ S2 then calls S3 and S4
+➤ Problem: If S4 fails, timeout propagates -> client gets a failed response, even if most of the request was successful.
+
+Issues:
+➤ Coupling: S1 must know and wait for S0 and S2
+➤ Failure Propagation: One failure leads to entire request failure.
+➤ Retry Complications: Replaying the request can cause duplicate processing or inconsistent data.
+
+🔄 Pub/Sub Model (Event-Driven Architecture)
+Concept:
+➤ Replace direct communication between services with events.
+➤ Services publish events to a Message Broker(e.g. Kafka, RabbitMQ).
+➤ Subscribers (other services) consume those events asynchronously.
+
+✅ Revised Flow Using Pub/Sub
+Client → S1 → Message Broker
+                   ↓
+              S0 and S2 (subscribers)
+                        ↓
+                 Message Broker → S3, S4
+
+📦 Advantages of Pub/Sub Architecture
+1. Decoupling
+➤ S1 doesn't need to know who consumes its message.
+➤ Reduces service-to-service dependencies.
+
+2. Fire-and-Forget
+➤ Once S1 publishes to the broker, it's done.
+➤ Broker ensures eventual delivery even if consumers are temporarily down.
+
+3. Resiliance
+➤ Broker stores messages.
+➤ When a service (like S2) is back up, it receives all missed messages.
+
+4. Scalability
+➤ Adding a new service (like S6) only requires subscribing to the broker.
+➤ No changes needed in publisher (S1).
+
+5. Simplicity in Interfaces
+➤ All messages go through a standard broker interface.
+➤ Services consume messages based on their needs.
+
+6. Loose Transaction Guarantee (At-Least-Once)
+➤ If a message is persisted to the broker, it will eventually reach its destination.
+
+❌ Disadvantages of Pub/Sub Systems
+1. Lack of Atomic Transactions
+➤ No global commit across services.
+➤ Not suitable for financial systems(e.g. fund transfers)
+
+Example:
+➤ Commission debited from account(S0)
+➤ Fund transfer (S0) fails or is delayed.
+➤ Leads to inconsistent balances.
+
+2. No Idempotency by Default
+➤ Messages may be replayed (at-least-once semantics).
+➤ If S2 performs non-idempotent actions(e.g. deducting money), duplicate actions may occur.
+
+Solution: Add request Ids to messages to ensure actions are not repeated.
+
+3. Scale data
+➤ Services might act onn old or duplicate events if not handled correctly.
+
+🔄 Comparison Summary:
+| Feature                | Request-Response       | Pub/Sub (Event-Driven)    |
+| ---------------------- | ---------------------- | ------------------------- |
+| Coupling               | High                   | Low                       |
+| Failure propagation    | High                   | Isolated by broker        |
+| Retry handling         | Manual, error-prone    | Handled via broker replay |
+| Consistency guarantees | Stronger (with effort) | Weaker (eventual)         |
+| Transactionality       | Easier to enforce      | Hard to maintain          |
+| Scalability            | Limited                | High                      |
+| Use case fit           | Financial systems      | Analytics, Notifications  |
+
+🔧 Use Cases Where Pub/Sub is Ideal:
+➤ Analytics event collection
+➤ Notification systems
+➤ Logging pipelines
+➤ Social networks (e.g., Tweet distribution on Twitter)
+➤ User activity tracking
+
+🏦 Use Cases Where It’s Risky:
+➤ Banking systems
+➤ Inventory control
+➤ Systems that require strict ACID guarantees
+
+🔚 Conclusion:
+➤ Pub/Sub is powerful for decoupling and scaling services in non-critical workflows.
+➤ For critical systems, implement idempotency, request tracking, or consider orchestration/transaction managers.
+

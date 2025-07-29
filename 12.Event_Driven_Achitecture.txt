@@ -1,0 +1,85 @@
+✅ Event-Driven Architecture (EDA)
+
+➤ Services don't call each other directly.
+➤ Instead, they communicate via events through an event bus.
+➤ A service produces an event indicating something has changed.
+➤ Other services (subscribers) consume relevant events and may trigger further events.
+➤ Similar to Publish-Subscribe (Pub/Sub), but with state changes and decoupled workflows.
+
+🧠 Core Components
+➤ Event Bus: Central system to which services publish or subscribe.
+➤ Producers: Services emitting events.
+➤ Consumers: Services acting upon received events.
+➤ Event Store: (Optional) Persists all emitted events for auditing or replay.
+
+🎮 Example Use Case (Gaming)
+➤ In games like Counter-Strike, player actions are sent as timestamped events.
+➤ Server replays event history to determine if a shot was valid based on past player positions.
+
+📌 Key Features
+1. Local Event Storage:
+➤ Each service can store events relevant to it.
+➤ Increases availability.
+
+2. Persistence:
+➤ Services can maintain state by replaying events.
+➤ Enables time-travel debugging or restoring to previous states.
+
+3. Replay and Replacement:
+➤ New services can replay historical events to sync with existing ones.
+➤ Easy version upgrades or replacements.
+
+✅ Advantages
+➤ High availability: Doesn’t rely on every service being live.
+➤ Resilience: New services can catch up using event history.
+➤ Debugging: Can replay events to debug or fix issues.
+➤ Decoupling: Services are loosely coupled.
+➤ Transactional guarantees:
+1. At most once: e.g., welcome email.
+2. At least once: e.g., invoice email.
+
+
+❌ Disadvantages
+Inconsistent State:
+➤ Different services may have outdated or mismatched data.
+
+Difficult Debugging:
+➤ Hard to trace event flow (no direct calls).
+
+External Dependency Limitation:
+➤ Can't replay events if the outcome depends on real-time external systems (e.g., sending emails).
+
+Low Fine-Grained Control:
+➤ Can't directly control target, timeout, or ordering like HTTP.
+
+Security Concerns:
+➤ Over-publishing might leak sensitive state changes.
+
+Complicated Event Management:
+➤ Determining who consumes what and enforcing that is tough.
+
+Event Replay Complexity:
+➤ Replay all → impractical for huge logs.
+
+Diff-based or Undo models needed.
+➤ Event compaction helps manage size.
+
+🧠 Developer Concerns
+➤ Difficult to reason: Hard to understand full system flow just by reading code.
+➤ Hard to revert to request-response: Not easily adaptable if you want synchronous interaction later.
+
+📌 When to Use EDA
+Useful when:
+➤ High availability is more important than consistency.
+➤ Services need to evolve independently.
+➤ Replay, auditing, or logging is important.
+
+Not ideal if:
+➤ You need strict request/response flow.
+➤ You rely heavily on real-time external API calls.
+
+🔁 Examples
+➤ Git (Commit History) → Event logs
+➤ React → State changes handled via events
+➤ Node.js → Event-driven I/O
+➤ Gaming servers → Process actions via timestamped events
