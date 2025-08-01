@@ -1,0 +1,118 @@
+🔸 1. What is an API?
+➤ API (Application Programmable Interface) is a documented, structured way for external systems to interact with your code.
+➤ It’s a contract – not about how your code works, but how others can use it.
+➤ Analogy: Like a function that external code can call.
+
+🧩 Example:
+GetAdmins(groupID: string) → returns List<Admin>
+
+➤ May return errors like:
+1. Group does not exist
+2. Group has been deleted
+➤ Return type: JSON list of Admin objects (e.g., ID, name, etc.)
+
+🔸 2. API Best Practices
+✅ a. Correct Placement
+➤ APIs should be placed within the correct microservice.
+➤ Example: GetAdmins should be part of the Group Service, not User or Messaging.
+
+✅ b. Clear Naming
+➤ Name APIs after the exact job they perform.
+➤ ❌ Don’t name it getAdmins if it returns both admins & their groups.
+➤ ✅ Rename to getAdminsAndGroups or break into separate APIs.
+
+✅ c. Parameter Clarity
+➤ Only accept needed parameters.
+➤ Don’t overload APIs with irrelevant params.
+➤ If the goal changes (e.g., verifying admin status), use a new function name like checkAdmins.
+
+🔸 3. Response Design
+➤ Return only what is required.
+➤ Avoid bloated responses like huge objects “just in case.”
+➤ Large responses:
+1. Increase bandwidth
+2. Confuse API consumers
+
+🔸 4. Error Handling
+➤ Define meaningful, specific errors (not just generic 500s)
+Example:
+✅ GroupNotFound
+✅ GroupDeleted
+❌ Just InternalServerError
+
+➤ Some things don’t require custom errors (e.g., invalid data types handled by the language).
+
+🔸 5. HTTP Endpoint Structure
+POST /chat/groupService/v1/getAdmins
+{
+   "groupId": "123"
+}
+➤ Use versioning in routes (v1, v2, etc.)
+➤ POST is valid here for request payload.
+➤ GET could also be used: /admins?groupId=123
+
+🔸 6. GET vs POST
+➤ GET is stateless, no payload, and used for retrieval.
+➤ POST allows payload, used for complex queries or data modification.
+➤ Avoid mixing action in payload (e.g., "action": "getAdmins").
+
+🔸 7. Avoiding Side Effects
+❌ Bad Practice:
+➤ setAdmins(groupId, admins) → creates group if it doesn't exist AND adds users.
+➤ Doing everything in one function. 
+
+✅ Good Practice:
+➤ Separate APIs:
+1. createGroup
+2. addMembers
+3. ➤ setAdmins
+
+Why?
+➤ Prevents unexpected behavior.
+➤ Makes APIs testable, atomic, and predictable.
+
+🔸 8. Atomicity in API
+➤ Atomicity = All or nothing operations.
+
+Example:
+1. setAdmins should not silently fail if group doesn’t exist.
+2. Instead, return an error: GroupNotFound.
+
+🔸 9. Pagination & Fragmentation
+🧾 Pagination:
+➤ Break large responses (e.g., 200 users) into chunks.
+➤ Use offset and limit parameters.
+GET /members?offset=0&limit=10
+
+🧩 Fragmentation:
+➤ Useful for inter-service communication with size limits.
+➤ Break response into parts and send sequentially (e.g., using TCP IDs).
+
+🔸 10. Data Consistency
+📉 Scenario:
+➤ Read request in progress → admin added in DB → inconsistent read.
+
+👀 Should you care?
+➤ Depends on API use case:
+1. For chat history: Not much
+2. For financial data: Yes
+
+🔁 Cache Usage:
+➤ Reduce DB load by caching
+➤ Accept slight staleness if consistency is not critical
+➤ Use graceful degradation: Send minimal info when overloaded.
+
+🔸 11. Final Checklist for Designing a Good API
+| Aspect               | Good Practice                                     |
+| -------------------- | ------------------------------------------------- |
+| API Naming           | Precise, Action-Based                             |
+| Parameters           | Keep minimal and meaningful                       |
+| Response             | Return only what’s needed                         |
+| Error Handling       | Define expected errors clearly                    |
+| Versioning           | Add versions in endpoints                         |
+| GET vs POST          | Use GET for read, POST for write/complex payloads |
+| Avoid Side Effects   | Split logic into atomic functions                 |
+| Support Pagination   | For large responses                               |
+| Ensure Atomicity     | Fail gracefully with proper messages              |
+| Optimize Consistency | Based on use case & performance needs             |
+| Support Caching      | To reduce repeated DB loads                       |

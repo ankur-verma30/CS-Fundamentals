@@ -1,0 +1,109 @@
+🔹 1. SQL vs NoSQL – Core Differences
+📘 SQL (Relational DB)
+➤ Structured schema; normalized data via foreign keys.
+➤ Data split across tables (e.g., Address stored separately from Person).
+➤ Schema rigid: Adding/removing fields requires ALTER operations.
+➤ Supports ACID properties (Atomicity, Consistency, Isolation, Durability).
+➤ Optimized for reads, joins, and transactional systems.
+
+📗 NoSQL (Document-Oriented DB)
+➤ Flexible schema; data stored as JSON-like documents.
+➤ Nested structures (e.g., address embedded inside user object).
+➤ Schema-less: Easy to add fields like salary to future records only.
+➤ Designed for write-heavy, eventual consistency, and high availability use cases.
+
+🔹 2. Advantages of NoSQL
+✅ Denormalized Structure:
+➤ All related data (e.g., user + address) stored together in one block.
+➤ Faster inserts and reads – no need for joins.
+
+🔄 Schema Flexibility:
+➤ Can store different fields per document.
+➤ No need to update existing records when schema evolves.
+
+📊 Horizontal Partitioning (Sharding):
+➤ Built for scale; distributes data across multiple nodes.
+➤ Supports high availability and load balancing.
+
+📈 Built for Aggregations:
+➤ Supports metrics like average age, total salary, etc.
+
+🔹 3. Disadvantages of NoSQL
+➤ ❌ Lack of Strong Consistency:
+➤ No ACID guarantees.
+➤ Eventual consistency model (inherent trade-off in CAP theorem).
+
+🐢 Slower Reads for Specific Fields:
+➤ Reads entire document (even for one field).
+➤ Not optimized for column-specific queries.
+
+🔗 No Implicit Relationships:
+➤ Cannot enforce foreign key constraints.
+➤ Relationships between entities must be managed manually.
+
+🔍 Joins are Hard:
+➤ Manual implementation required.
+➤ No built-in support for complex joins like SQL.
+
+🔹 4. Cassandra Architecture: High-Level
+➤ Data stored in a distributed cluster (e.g., 5 nodes).
+➤ Key (not ID) is hashed to determine target node.
+➤ Good hash function ensures uniform distribution and prevents hotspots.
+➤ Poor hash functions may cause data skew (some nodes overloaded).
+➤ Multi-level sharding can help in complex cases (e.g., region-wise routing).
+
+🔹 5. Replication in Cassandra
+➤ To prevent data loss, writes are replicated across N nodes (replication factor).
+Example: If request hashes to node 2:
+➤ Data stored in node 2 + next N-1 clockwise nodes (e.g., nodes 3 and 4).
+➤ Redundancy improves fault tolerance and read availability.
+➤ Any replica can serve a read request.
+
+🔹 6. Distributed Consensus & Quorum
+🧠 The Problem:
+➤ Write happens to node 5 → supposed to replicate to 1 & 2.
+➤ If 5 crashes and 1 & 2 haven’t received the data yet → read fails → wrong result.
+
+✅ Quorum (Read/Write):
+➤ Ensures that majority of replicas agree on the same value before returning result.
+➤ Formula: R + W > RF (R = read quorum, W = write quorum, RF = replication factor)
+Example: RF = 3 → read from any 2 nodes → take the latest timestamp.
+
+⚠️ Risks:
+➤ If not enough nodes have the latest data, inconsistent reads may happen.
+However, these situations are rare and acceptable in high-availability setups.
+
+🔹 7. SSTables & Compaction (Write Path in Cassandra)
+📥 Memtable (In-Memory):
+➤ Writes are logged in memory sequentially.
+➤ Fast insertion like a log file.
+➤ Periodically flushed to disk as SSTable (Sorted String Table).
+
+📂 SSTable (Persistent):
+➤ Immutable, sorted, disk-based structure.
+➤ Every write creates a new SSTable.
+➤ Updates on same key create duplicate versions in new SSTables.
+
+🧹 Compaction:
+➤ Merges SSTables to:
+➤ Keep latest record (based on timestamp)
+➤ Remove duplicate/obsolete versions
+➤ Free up disk space
+
+🪦 Tombstones:
+➤ Marks a record as deleted.
+➤ During compaction, tombstones trigger deletion of all older versions.
+➤ Ensures deleted data is eventually removed.
+
+🔹 8. When to Use NoSQL?
+✅ Use NoSQL if:
+➤ You have write-heavy workloads
+➤ You prefer schema-less data
+➤ You’re okay with eventual consistency
+➤ You prioritize availability and scalability
+➤ You require flexible, denormalized structures (e.g., user profiles, logs, sensor data)
+
+❌ Avoid NoSQL if:
+➤ You need strong consistency (ACID)
+➤ You rely on complex joins/relationships
+➤ You’re building financial or transactional systems
