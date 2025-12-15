@@ -1,144 +1,510 @@
+#########################
 📌 Tinder System Design
+#########################
 
-🎯 Picking Features
-➤ In interviews, don't rush into tech choices (e.g., services, DBs); step back and think logically about what features your users need first.
+🔁 Prerequisites & Mindset Before System Design
+➤ System design requires strong fundamentals (databases, networking, scalability, storage, consistency, etc.)
+➤ Diagrams won’t make sense without conceptual understanding
+➤ Each concept discussed can be deep-dived independently
+➤ Interview expectation: clarity of thinking > fancy components
+➤ Ensure basics are clear before jumping into architecture design
 
-➤ Prefer the front-to-back approach:
-Start with user features → break into services → define data requirements per service. This keeps the system flexible and practical.
 
-➤ Core Features Chosen for Tinder:
-1. Storing profiles (with images (5 atmost)).
-2. Recommending matches (suggesting people to swipe).
-3. Noting matches (track mutual swipes).
-4. Direct messaging (chat after match).
+🔁 Designing Tinder
+❌ Common mistake: candidates jump directly to tech stack (DBs, services, tools)
+✅ Recommended approach:
+✔️ Step back
+✔️ Think logically and calmly
+✔️ Focus on what users want first, not infrastructure
 
-🖼️ Storing Images
-➤ Every user can have up to 5 images, which adds significant storage overhead.
-➤ Debate: File system vs Blob (Binary Large Object) in a database.
 
-📁 File vs Blob Storage Analysis
-➤ Mutability:
-Images are rarely updated; better to treat them as immutable and replace instead of update.
-So, mutability support from DBs is unnecessary.
+🔄 Two Possible Approaches to Design the System
 
-➤ Transaction Guarantees:
-Not needed for images; atomic writes not essential here.
+1️⃣ Data-First (ER Diagram Approach) ❌
+➤ Start with entities and relationships
+➤ Then design services
+➤ Then design clients
+➤ Problems:
+  ✔️ Too constrained
+  ✔️ Too abstract
+  ✔️ Ignores actual user needs initially
 
-➤ Indexing:
-DB indexes help with structured data, not with image content (binary). Hence, irrelevant for images.
- 
-➤ Access Control:
-Both DB and file systems offer control. Setting up secure file systems is as viable as databases.
+2️⃣ Feature-First (Front-to-Back) ✅ (Recommended)
+➤ Start with **user-facing features**
+➤ Break features into **services**
+➤ Define **data requirements per service**
 
-➤ Why Prefer File Systems?
-1. Cheaper than database blob storage.
-2. Faster for large object reads/writes.
-3. Built-in support for CDNs (Content Delivery Networks) for fast image delivery.
-4. Avoids accidental large reads like SELECT * (no risk of pulling full image blobs unintentionally).
+➤ Advantages:
+  ✔️ Flexible architecture
+  ✔️ Easier to evolve system
+  ✔️ Aligns with real product development
+  ✔️ Interviewer-friendly approach
 
-🗃️ Storage Design for Images
-➤ Use distributed file system for storing actual images.
-➤ Use database to store metadata:
-Fields: image_id, profile_id, image_url.
-➤ This model supports scalable image serving, file referencing, and future enhancements (e.g., ML processing).
 
-📲 System Design: User Interaction with Profile Service
-➤ The user interacts with the system through the mobile client, which sends a request to register with the profile service using details like username and password.
+🔁 Feature Selection Strategy
+➤ Do NOT overload with features
+➤ Interview duration ≈ 1 hour max
+➤ Start with 4–5 core features only
+➤ Depth > breadth
 
-➤ Although actual production systems involve more security (e.g., email verification, 2FA), for simplicity, this flow assumes that the profile service also handles email verifications.
 
-➤ After registration, the user typically updates their profile (name, description, and photos), which raises the authentication question—how do we verify the request is from the legitimate user?
+🔁 Core Features Identified for Tinder
+1️⃣ Storing User Profiles
+➤ Obvious but **confirm with interviewer**
+➤ Profiles include:
+  ✔️ Basic user info
+  ✔️ Images (very important)
+  ✔️ Location
 
-🔐 Authentication Flow and Its Optimization
-➤ Initially, authentication could be managed inside the profile service using username and password or token-based authentication.
+🌟 Follow-up Questions
+❓How many images per user?
+  👉 Assumption taken: 5 images per user
 
-➤ Token authentication is preferred in interviews; however, if every service has to do this repeatedly, it results in duplicate auth logic across services.
 
-➤ To resolve this, introduce a Gateway Service:
-1. All client requests go through this gateway.
-2. The gateway validates the token by checking with the profile service.
-3. If valid, the request is routed to the correct internal service; otherwise, it fails early.
-4. This decouples authentication responsibility from each microservice and standardizes security.
+2️⃣ Match Recommendation System
+➤ Users swipe based on preferences
+➤ System recommends profiles
 
-🧩 Separation of Image Service
-➤ The user might update their name or description frequently, but images are heavier and used differently, e.g., by ML systems or other features that require only images.
+🌟 Follow-up Questions to Ask
+➤ Number of active users
+➤ Avoid over-questioning
+➤ Keep assumptions high-level and simple
 
-➤ Therefore, it’s logical to separate image storage from the profile service into an Image Service:
-1. Stores actual image files in a distributed file system.
-2. Maintains a database with mappings:
-    1.1 profile_id, image_id, and the URL pointing to the image file.
 
-➤ This decoupling improves scalability, maintainability, and allows different teams or services to interact with images independently.
+3️⃣ Matching Logic
+When two users like each other → match created
+🟢 Assumptions
+➤ Match rate assumption (example – India):
+  ✔️ 0.1% chance per swipe
+➤ Estimated matches per user:
+  ✔️ Active Users × 10⁻³ per day
+➤ Assumptions are acceptable in interviews if stated clearly
 
-💬 Direct Messaging (Chat)
-➤ In Tinder, once two users match, they need to exchange messages. The client (user) initiates a request to send a message to another matched user's ID via the Gateway (e.g., message to userID 1 from userID 2).
 
-➤ Traditional protocols like HTTP follow a client-server model where the client always initiates communication. This model is inefficient for chat, as it would require the client to poll the server repeatedly (e.g., every 5 seconds) asking if there are new messages, which leads to performance issues.
+4️⃣ Direct Messaging (After Match)
+Chat allowed only after match
+Messaging system is a separate feature
+Detailed questions deferred for later design stages
 
-➤ To enable real-time, two-way communication, a peer-to-peer (P2P) protocol is preferred, where both parties are treated equally. This allows servers to push messages to clients.
 
-🔗 Protocol Choice: XMPP vs HTTP
-➤ XMPP (Extensible Messaging and Presence Protocol) is a peer-to-peer communication protocol suited for chat apps, allowing servers to push messages directly to clients without polling.
+🔁 Designing Image Storage 
+❓ Core Question
+➤ How should images be stored?
+  🔗 File system
+  🔗 Database (BLOB – Binary Large Object)  →  Used for storing large binary data (images, videos)
 
-➤ In contrast, HTTP is a request-response protocol and isn't ideal for chat unless workarounds like long polling or HTTP/2 streams are used.
 
-➤ So in a system design interview, it’s good to mention both:
-1. HTTP (for traditional client-server).
-2. XMPP or WebSockets (for persistent, bi-directional chat connections).
+🔁 Database 🆚 File System for Image Storage
+🔄 Arguments FOR Database Storage (BLOBs)
 
-🧵 WebSocket / TCP for Persistent Connections
-➤ The client and server maintain a WebSocket connection, which is a lightweight, persistent connection over TCP.
+Databases provide:
+➤ Mutability
+➤ Transaction guarantees
+➤ Indexing
+➤ Access control
+👉 Why These Don’t Matter for Images
 
-➤ Alternatively, you could mention TCP directly, saying, "I'll write my own protocol over TCP," which shows protocol-level understanding.
+❌ Mutability
+➤ Images are rarely edited
+➤ Updates replace the entire image, not partial bits
+➤ Better to treat images as immutable
 
-➤ These open connections allow the server to push chat messages instantly as they arrive, improving latency and user experience.
+❌ Transaction Guarantees
+➤ Images don’t need atomic multi-step operations
+➤ No transactional dependency
 
-📡 Session Management Service
-➤ While the Gateway Service handles routing, it should not be responsible for managing user-to-connection mappings. This leads to coupling and code duplication.
+❌ Indexes
+➤ Indexing useful for searchable fields (name, age)
+➤ Binary data = meaningless for indexing
 
-➤ Instead, introduce a dedicated Session Management Service, which maintains a mapping of:
-user_id → connection_id
+⚠️ Access Control
+➤ Valid concern
+➤ But file systems can also enforce access control
+➤ Setup complexity ≈ secure database setup
 
-➤ This allows the system to identify which socket or connection the target user is currently using and then route messages accordingly.
 
-➤ The Session Service supports real-time messaging by telling the system where a user is connected, enabling push-based delivery of messages.
+🟢 Why File Storage is Preferred
+➤ Cheaper than database storage
+➤ Designed specifically for file handling
+➤ Better suited for large static objects (images)
+➤ Scales well with CDN + object storage
 
-💘 Matching Algorithm (Noting Matches)
-➤ Although storing match history on the client seems feasible, it’s risky—server should remain the source of truth to avoid data loss (e.g., app uninstall).
 
-➤ Introduce a Matcher Service: Maintains a table of user_id → matched_user_id to track bidirectional matches (e.g., if A matches with B, then B matches with A is also stored). Indexes are applied to both user IDs.
+🔁 Vertical Partitioning vs File Storage (Extended Argument)
+➤ Databases can store large objects separately using vertical partitioning
+  ✔️ Profile table: profile_id
+  ✔️ Image table: image_id → image stored elsewhere
+➤ But if image is already stored separately:
+  ✔️ Why not use a file system directly?
 
-➤ Before sending a direct message, the system checks with the Matcher Service to validate the match, then forwards it to the Session Service, which determines the active connection for the matched user. This ensures only matched users can chat with each other.
 
-🎯 Recommendation Engine
-➤ The biggest challenge is finding nearby users while also applying filters like gender and age. While filtering by gender/age is index-friendly, location is tricky due to its complexity.
+❗ Problems with DB-based Image Storage
+➤ Higher cost compared to file storage
+➤ Risk of accidental SELECT * queries pulling heavy data
+➤ In real-world systems, SELECT * is commonly (and mistakenly) used
+➤ File systems naturally avoid this issue
 
-➤ Many assume multiple indexes solve the problem, but a relational DB table can only efficiently use one index per query. This limits performance for combined filters.
 
-🔄 Solving Multi-Index Problem: Cassandra or Sharding
-➤ Option 1: Use NoSQL like Cassandra/DynamoDB
-These distributed DBs replicate data and let you create query-specific tables, making multi-parameter filtering efficient.
+🔁 Static Nature of Images
+➤ Profile images are static content
+➤ Ideal candidates for:
+    ✔️ CDN (Content Delivery Network)
 
-➤ Option 2: Sharding (Horizontal Partitioning)
-1. Data is partitioned based on some field (e.g., user name A–J in node 1, K–P in node 2). This is called horizontal sharding.
-2. Enables locating the correct DB node quickly based on data range.
+➤ CDN Benefits
+    ✔️ Faster access to images
+    ✔️ Reduced latency
+    ✔️ Offloads traffic from core services
 
-🛡️ Sharding + Fault Tolerance
-➤ To prevent single points of failure in sharding:
-1. Use master-slave architecture within each shard.
-2. If the master node fails, the slave takes over, maintaining availability.
+➤ Database Still Stores Image References
+➤ Database does NOT store the image itself
+➤ It stores:
+  ✔️ image_id
+  ✔️ image_url
+  ✔️ profile_id (owner)
 
-➤ Be ready to justify sharding over distributed DBs (like Cassandra) during interviews. Cassandra offers many features out-of-the-box, while sharding is more complex to maintain.
 
-📍 Sharding by Location for Recommendations
-➤ Partition users based on location chunks (e.g., lat/lon grids), and then within each chunk:
-1. Use indexes to filter by age.
-2. Then apply a final gender filter manually.
+🔄 Storage Flow
+➤ Image stored in:
+  ✔️ Distributed File System
+➤ Database stores:
+  ✔️ Mapping of profile_id → image_id → image_url
 
-➤ This process ensures scalable and fast user recommendations based on geo and profile criteria.
 
-🧠 Recommendation Service
-➤ Stores or fetches relevant user IDs based on location (can reuse profile service data or keep its own).
+🔁 High-Level System Design Begins
+➡ Client Application
+➤ Mobile client sends requests
+➤ All actions initiated by user interaction
 
-➤ Location updates are periodic (e.g., every 1–3 hours) from the client to reduce overhead and enable timely recommendations.
+
+🔁 Profile Service Responsibilities
+➤ User registration
+  ✔️ username
+  ✔️ password
+➤ Stores user data in database
+➤ Handles authentication mechanisms
+  ✔️ Email verification
+  ✔️ Two-factor authentication (assumed)
+
+
+🔁 Profile Service – Database Schema Updating Profile Flow
+➤ User updates:
+  ✔️ Profile details
+  ✔️ Images
+
+
+🔁 Authentication Approaches
+❌ Username + Password per Request
+➤ Insecure
+➤ Poor practice
+
+✅ Token-Based Authentication
+➤ Client sends token with request
+➤ Profile service validates token
+➤ Interview-safe keyword: token-based auth
+
+
+❗Problem with Direct Authentication in Every Service
+➤ Each new service needs auth logic
+➤ Causes:
+    ✔️ Code duplication    
+    ✔️ Tight coupling  
+    ✔️ Poor scalability
+
+
+🔁 Gateway Service 
+➡ Role of Gateway: 
+➤ Single entry point for clients
+➤ Clients NEVER talk directly to services
+
+🔄 Gateway Responsibilities
+➤ Receives request
+➤ Sends token + username to profile service
+➤ Gets auth decision (yes / no)
+➤ Routes request to correct service
+➤ Forwards response back to client
+
+🔄 Benefits of Gateway Pattern
+➤ Decouples services
+➤ Centralized authentication
+➤ Prevents duplication of auth logic
+➤ Enables protocol separation (important for chat later)
+
+
+🔁 Image Service (Separate from Profile Service)
+❓ Why Separate Image Service?
+➤ Images are heavy
+➤ Other services may need only images:
+  ✔️ ML pipelines
+  ✔️ Analytics
+➤ Profile service often needs only metadata
+
+
+🔁 Image Service Architecture
+➤ Distributed File System
+  ✔️ Stores actual image files
+➤ Database stores references:
+  ✔️ profile_id
+  ✔️ image_id
+  ✔️ image_url
+
+
+🔁 Direct Messaging
+➤ Client A wants to message Client B
+➤ Happens only after match
+
+✅ Request Example
+Send message to user_id_1 from user_id_2
+
+
+🔁 Communication Protocol Primer
+🔄 HTTP (HyperText Transfer Protocol)
+➤ Client → Server → Response
+➤ Server never initiates request
+➤ Not ideal for real-time chat
+
+
+🔁 Chat Protocol Limitation with Client–Server Model
+➤ Traditional client–server (HTTP) is **pull-based**
+➤ Client must repeatedly ask:
+  ✔️ Any new messages?
+
+❗ Problems:
+    ✔️ Inefficient
+    ✔️ High latency
+    ✔️ Wasted resources
+
+
+🔁 Why Chat Needs Push-Based Communication
+➤ Messages should be pushed to client instantly
+➤ Polling every few seconds is not scalable
+
+
+🔁 Peer-to-Peer Style Communication for Chat
+➤ All machines are treated as equals
+➤ Server can push messages to client
+➤ Better suited for real-time messaging
+
+
+🔁 Protocols for Chat
+1️⃣ HTTP (Client–Server)
+✔️ Request → Response
+✔️ Server cannot initiate communication
+✔️ Not ideal for chat
+
+2️⃣ XMPP (Preferred Example)
+✔️ Supports real-time messaging
+✔️ Server can push messages to client
+✔️ Important interview keyword
+
+
+🔁 Underlying Connection Mechanism
+1️⃣ WebSockets
+✔️ Persistent connection
+✔️ Enables real-time communication
+
+2️⃣ Alternative: TCP
+✔️ Custom protocol over TCP
+✔️ Connection maintained
+✔️ Interview-safe simplification
+
+
+🔁 Managing Active Connections
+❗ Core Problem
+✔️ For every connection ID:
+    Need to know which user owns it
+
+
+🔁 Session Service (Decoupling Responsibility)
+➤ Gateway should NOT manage connections
+➤ Introduce a separate Session Service
+
+🔁 Session Service Responsibilities
+➤ Map: user_id → connection_id
+➤ Track active connections
+➤ Enable message routing
+
+
+🔁 Direct Messaging Flow
+1️⃣ User A sends message request
+2️⃣ Match validation needed
+3️⃣ Session service finds connection for User B
+4️⃣ Message pushed to correct socket
+
+
+🔁 Noting Matches (Requirement 3)
+❓ How to Store Matches on Client-Side Storage?
+➤ Possible
+➤ But server should be source of truth
+
+
+🔁 Matcher Service
+➤ Dedicated service to store matches
+➤ Table structure:
+  ✔️ user_id → matched_user_id
+
+🔄 Data Duplication
+➤ A ↔ B stored twice
+➤ Enables fast lookup
+
+🔄 Indexing
+➤ Index on user_id
+➤ Efficient match queries
+
+
+🔁 Authorization Before Chat
+➤ Matcher service validates:
+  ✔️ Whether User A is matched with User B
+➤ Communicates with Session Service
+➤ Prevents unauthorized messaging
+
+
+🔁 Match Validation Flow
+1️⃣ Message request sent
+2️⃣ Matcher validates match
+3️⃣ Session service resolves connection
+4️⃣ Message delivered
+
+
+🔁 Handling App Reinstall Scenario
+➤ Matcher service stores all matches
+➤ Client pulls matches on reinstall
+➤ Only data lost:
+  ✔️ Left / Right swipes
+➤ Acceptable trade-off
+
+
+🔁 Recommendation Engine (Final Requirement)
+❓ Core Problem
+➤ Recommend users nearby
+
+🔁 Data Required for Recommendations
+✔️ Age
+✔️ Gender
+✔️ Location
+
+
+🔁 Indexing Misconception 
+➤ Cannot efficiently optimize queries on multiple indexes simultaneously
+➤ Database uses **only one index per query**
+➤ Query optimizer decision is unpredictable
+
+
+🔁 Why Traditional RDBMS Struggles Here
+➤ Multiple filters:
+  ✔️ age range
+  ✔️ gender
+  ✔️ location proximity
+➤ Only one index effectively used
+➤ Poor performance at scale
+
+✅ Solution: NoSQL for Recommendations
+1️⃣ Cassandra (Example➤ 
+➤ Distributed NoSQL database
+➤ Data replication allowed
+➤ Tables designed per query pattern
+
+🧠 Key Idea
+➤ Duplicate data
+➤ Optimize for **read patterns**, not normalization
+
+
+🔁 Recommendation DB Direction
+✔️ Distributed database (e.g., Cassandra)
+✔️ Multiple tables per query type
+✔️ Enables efficient multi-parameter filtering
+
+
+🔁 Recommendation Storage – Two Approaches
+1️⃣ Distributed NoSQL Databases
+✅ Examples:
+  ✔️ Cassandra
+  ✔️ Amazon DynamoDB
+
+ ➤Built-in support for:
+  ✔️ Distribution
+  ✔️ Replication
+  ✔️ High availability
+➤ Query-optimized table design
+
+2️⃣ Sharding on Relational Databases
+➤ Also called **Horizontal Partitioning**
+➤ Data split across nodes based on a column value
+
+✅ Sharding Explained with Example
+➤Partition key: name
+➤Users with names:
+  ✔️ A–J → DB Node 36
+  ✔️ K–P → DB Node 79
+➤ Query routing:
+  ✔️ Value determines which node to hit
+
+❓ Why Sharding Helps
+✔️ Limits query scope to specific nodes
+✔️ Improves performance
+✔️ Scales relational databases
+
+
+🧠 Single Point of Failure Concern
+❗Problem
+➤ If one shard crashes, users mapped to it are affected
+
+✅ Solution
+➤ Master–Slave replication per shard
+➤ Failover strategy:
+  ✔️ Master fails → Slave promoted
+➤ Low probability of both failing simultaneously
+
+
+🔄 Sharding 🆚 Cassandra 
+➤ Sharding:
+  ✔️ More control
+  ✔️ More operational complexity
+➤ Cassandra / Dynamo:
+  ✔️ Built-in sharding + replication
+  ✔️ Faster to reason about in interviews
+
+
+🔁 Why Location-Based Sharding is Needed
+➤ Core recommendation problem: Who is nearby?
+➤ Partition users based on:
+  ✔️ Location chunks (not necessarily city-level)
+
+
+🔁 Location Chunking Strategy
+➤ Divide geographic area into chunks
+➤ Each chunk → mapped to a shard/node
+➤ Query flow:
+  ✔️ Fetch users from same chunk
+  ✔️ Filter by age
+  ✔️ Filter by gender
+
+
+🔁 Recommendation Engine Design
+🔄 Recommendation Service
+➤ Separate service
+➤ Responsibilities:
+  ✔️ Pull nearby users
+  ✔️ Apply filters
+
+
+🔁 Location Updates
+➤ Client periodically updates location
+➤ Frequency:
+  ✔️ Every 1–3 hours
+➤ Avoid excessive writes
+
+
+🔁 Recommendation Data Storage
+➤ Store minimal data:
+  ✔️ user_id
+  ✔️ location
+➤ Profile service can provide additional info
+
+
+🔁 Final Interview Pointers
+➤ Break system into independent services
+➤ Remove single points of failure
+➤ Prefer partitioning + replication
+➤ Simple systems are valid systems
+➤ Tinder is simpler than feed-based systems
 
