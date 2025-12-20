@@ -1,0 +1,203 @@
+###########
+🔷 Nginx
+###########
+NGINX is a high-performance web server, reverse proxy, load balancer, and HTTP cache that uses an event-driven, non-blocking architecture to handle large numbers of concurrent connections efficiently.
+
+
+❓ Why NGINX Was Created (Problem Statement)
+Traditional web servers like Apache (process/thread-based) had problems:
+➤ One thread/process per request
+➤ High memory consumption
+➤ Poor performance under high concurrency
+➤ Context switching overhead
+
+👉 NGINX was created to solve the “C10K problem” (handling 10,000+ concurrent connections efficiently)
+
+
+🔄 Core Idea Behind NGINX
+🔑 Event-Driven & Non-Blocking I/O
+➤ Uses single / few worker processes
+➤ Each worker handles thousands of connections
+➤ Uses OS mechanisms like:
+    ✔️ epoll (Linux)
+    ✔️ kqueue (BSD)
+👉 One worker ≠ one request
+👉 One worker = many requests concurrently
+
+
+🔄 High-Level Architecture of NGINX
+          Client Requests
+                ↓
+          ┌─────────────┐
+          │   Master    │
+          │   Process   │
+          └─────┬───────┘
+                ↓
+     ┌──────────┼──────────┐
+     │          │          │
+┌────────┐ ┌────────┐ ┌────────┐
+│ Worker │ │ Worker │ │ Worker │
+│Process │ │Process │ │Process │
+└────────┘ └────────┘ └────────┘
+
+🔄 Master Process
+➤ Reads configuration
+➤ Manages worker processes
+➤ Handles reloads & restarts
+
+🔄 Worker Processes
+➤ Handle actual client requests
+➤ Event-driven
+➤ Non-blocking
+
+
+🔄 Working of Nginx
+NGINX is NOT just a web server.
+
+✅ Main Use Cases
+➤ Web Server
+➤ Reverse Proxy
+➤ Load Balancer
+➤ HTTP Cache
+➤ API Gateway (basic)
+➤ SSL/TLS termination
+➤ Static content serving
+
+1️⃣ NGINX as a Web Server
+➤ Serves static files (HTML, CSS, JS, images)
+➤ Extremely fast for static content
+➤ Better than Apache for static workloads
+
+✅ Example:
+server {
+    listen 80;
+    server_name example.com;
+    root /var/www/html;
+}
+
+2️⃣ NGINX as a Reverse Proxy 
+❓ What is Reverse Proxy?
+➤ Client talks to NGINX
+➤ NGINX talks to backend servers
+➤ Backend servers are hidden
+
+👉 Client → NGINX → Backend (Spring Boot / Node / Django)
+✅ Example:
+
+location /api {
+    proxy_pass http://localhost:8080;
+}
+
+🔁 Benefits:
+➤ Security
+➤ Load balancing
+➤ SSL termination
+➤ Centralized entry point
+
+3️⃣ NGINX as a Load Balancer
+Supported Algorithms:
+➤ round-robin (default)
+➤ least_conn
+➤ ip_hash
+➤ weighted load balancing
+
+✅ Example:
+
+🔗 upstream backend {
+    server app1:8080;
+    server app2:8080;
+}
+
+🔗 server {
+    location / {
+        proxy_pass http://backend;
+    }
+}
+
+
+4️⃣ NGINX as a Cache
+➤ Caches responses from backend
+➤ Reduces backend load
+➤ Improves response time
+
+✅ Example:
+
+proxy_cache_path /tmp/cache levels=1:2 keys_zone=mycache:10m;
+
+location / {
+    proxy_cache mycache;
+    proxy_pass http://backend;
+}
+
+
+5️⃣ SSL / TLS Termination
+➤ NGINX handles HTTPS
+➤ Backend servers run on HTTP
+
+🔁 Benefits:
+➤ Simplifies backend
+➤ Improves performance
+➤ Centralized certificate management
+
+🔷 NGINX vs Apache
+| Feature         | NGINX             | Apache                 |
+| --------------- | ----------------- | ---------------------- |
+| Architecture    | Event-driven      | Process / thread-based |
+| Concurrency     | Very high         | Limited                |
+| Memory usage    | Low               | High                   |
+| Static content  | Excellent         | Slower                 |
+| Dynamic content | Via proxy         | Via modules            |
+| Configuration   | Declarative       | More flexible          |
+| Best use case   | Reverse proxy, LB | Legacy apps            |
+
+
+🔄 NGINX Configuration Basics
+Important Blocks:
+➤ events {} → connection handling
+➤ http {} → HTTP configuration
+➤ server {} → virtual host
+➤ location {} → request routing
+
+
+🔄 NGINX Request Flow 
+➤ Client sends request
+➤ NGINX master assigns worker
+➤ Worker processes request asynchronously
+➤ Response returned to client
+➤ Connection reused if possible
+
+
+🔄 Why NGINX is So Fast❓
+➤ Event-driven architecture
+➤ Non-blocking I/O
+➤ Minimal context switching
+➤ Optimized C code
+➤ Efficient memory usage
+
+🔄 NGINX in Real-World Systems
+Used by:
+    ✔️ Netflix
+    ✔️ Amazon
+    ✔️ Google
+    ✔️ Cloudflare
+    ✔️ Kubernetes Ingress Controllers
+
+Common setup:
+Client → NGINX → Microservices → DB
+
+
+🔄 NGINX in Microservices & Kubernetes
+➤ Used as:
+    ✔️ Ingress Controller
+    ✔️ API Gateway (basic)
+➤ Handles:
+    ✔️ Routing
+    ✔️ SSL
+    ✔️ Rate limiting
+
+
+🔄 Limitations of NGINX
+❌ Not a full API Gateway
+❌ Limited authentication features
+❌ No built-in service discovery (needs config reload)
+❌ Advanced features require NGINX Plus

@@ -1,0 +1,159 @@
+#########################################################################
+🔷 Capacity Planning and Estimation: How Much Data YouTube Stores Daily
+#########################################################################
+🔄 Interview Framing
+➤ In system design interviews, exact real numbers are NOT expected.
+➤ What is expected:
+    ✔️ Reasonable, industry-aligned assumptions
+    ✔️ Correct order of magnitude
+    ✔️ Ability to explain why an assumption is chosen
+👉 Below assumptions are closer to real-world YouTube-scale systems and safe to use in interviews.
+
+
+🔄 User Base & Upload Behavior
+🌟 Active Users
+➤ Monthly active users (MAU): ~2.5 billion (public estimates)
+➤ Daily active users (DAU): ~40–50% of MAU
+➤ Assume 1 billion daily active users ✅ (good interview assumption)
+
+🌟 Uploading Users
+➤ Not 1/1000 users upload daily (too high)
+➤ Realistically:
+    ✔️ ~0.05%–0.1% users upload content daily
+
+👉 Final Assumption
+ 0.1% of DAU upload 1 video/day
+ 1B × 0.001 = 1 million uploads/day ✅
+👉 (This aligns with public upload statistics)
+
+
+🔄Number of Videos Uploaded Per Day (Real Data Validation)
+🌟 Publicly Known Metric
+ ~500 hours of video uploaded per minute
+
+🌟 Convert to Daily Upload Volume
+ 500 hours/min × 1440 min/day = 720,000 hours/day
+ Average video length ≈ 8–12 minutes
+ Assume 10 minutes/video
+
+🌟 Videos per Day
+ 720,000 hours = 43.2 million minutes
+ 43.2M / 10 ≈ 4.3 million videos/day
+
+👉 Safe Rounded Value
+~4–5 million videos/day
+
+
+🔄 Average Video Size (Corrected & Realistic)
+ Common Mistake (Avoid)
+
+ Frame-based estimation (raw frames) ❌
+ Videos are heavily compressed using codecs
+
+🌟 Realistic Compression Metrics
+➤ Codec: H.264 / VP9 / AV1
+➤ Average bitrate for 720p:
+    ✔️ ~2–3 Mbps
+
+🌟 Storage per 10-Min Video
+➤ 2.5 Mbps × 600 sec ≈ 1.5 Gb ≈ ~190 MB
+
+👉 Safe Assumption
+➤ 200 MB per uploaded video (original)
+(This is far more accurate than 1 GB)
+
+
+🔄 Raw Storage Per Day (Original Uploads)
+➤ Videos/day: ~4.5 million
+➤ Size/video: ~200 MB
+
+🌟 Daily Raw Storage
+➤ 4.5M × 200 MB = 900 TB/day ≈ ~1 PB/day ✅
+
+
+🔄 Replication for Fault Tolerance
+🌟 Realistic Replication Factor
+➤ Distributed object stores (GFS / Colossus / S3-style):
+    ✔️ 3 replicas
+
+🌟 Raw Storage with Replication
+1 PB × 3 = 3 PB/day
+
+
+🔄 Processed & Transcoded Video Storage
+🌟 Why Transcoding Is Required
+➤ Adaptive streaming (DASH / HLS)
+➤ Multiple devices & network conditions
+
+🌟 Typical Renditions Stored
+➤ 1080p (some videos)
+➤ 720p
+➤ 480p
+➤ 360p
+➤ 240p
+➤ 144p
+
+🌟 Storage Expansion Factor (Industry-Used)
+➤ Transcoding increases storage by ~2–2.5× original size
+
+🌟 Processed Storage Per Day
+➤ 1 PB × 2.5 ≈ 2.5 PB/day
+➤ With replication:
+    ✔️ 2.5 PB × 3 = 7.5 PB/day
+
+
+🔄 Total Daily Storage Requirement
+| Component                      | Storage           |
+| ------------------------------ | ----------------- |
+| Raw uploads (replicated)       | ~3 PB             |
+| Transcoded videos (replicated) | ~7.5 PB           |
+| Total per day              | ~10–11 PB/day |
+✅ Very close to real-world scale estimates
+
+
+🔄 Metadata Storage & Cache Estimation
+🌟 Metadata Per Video
+➤ Video ID, title, tags, description
+➤ Creator ID
+➤ Duration, resolution list
+➤ Counters (views, likes)
+
+🌟 Size Assumption
+➤ ~2–3 KB per video (not 5 KB)
+
+🌟 Daily Metadata Growth
+➤ 4.5M × 3 KB ≈ ~13.5 GB/day
+
+🌟 Caching Strategy
+➤ Cache only hot videos (~1–2%)
+➤ Assume 100M hot videos total
+
+🌟 Cache Size
+➤ 100M × 3 KB ≈ ~300 GB RAM
+➤ Implemented via Redis / Memcached
+
+
+🔄 Video Encoding Compute Requirement
+🌟 Encoding Cost (Industry Approximation)
+ Encoding 1 minute of video ≈ 1–2 CPU minutes
+
+🌟 Daily Encoding Work
+➤ 720,000 hours/day = 43.2M minutes/day
+➤ CPU minutes required:
+    ✔️ ~60M CPU minutes/day
+
+🌟 CPU Core Requirement
+➤ 1 core/day capacity ≈ 1440 minutes
+➤ 60M / 1440 ≈ ~42,000 CPU cores
+
+🌟 Scaling Strategy
+➤ Distributed encoding pipeline
+➤ Spot instances / batch processing
+➤ Priority-based encoding (popular videos first)
+
+
+🔄 Cost Perspective (High-Level)
+➤ Storage cost (hyperscale): ~$20/TB/year
+➤ 10 PB/day growth → ~3.6 EB/year
+➤ Annual storage cost alone: $70–80M/year
+➤ Multi-year cost → Hundreds of millions to billions USD

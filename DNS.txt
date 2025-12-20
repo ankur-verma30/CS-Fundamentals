@@ -1,0 +1,284 @@
+🌐 DNS (Domain Name System)
+➤ DNS is the Internet’s globally distributed, hierarchical, fault-tolerant naming system that maps:
+➤ Human-readable names → Machine-usable network identifiers
+➤ Most commonly: example.com → 93.184.216.34
+
+➤ But DNS is not just name → IP.
+➤ It is a distributed database with:
+    ✔️ Delegation
+    ✔️ Caching
+    ✔️ Replication
+    ✔️ Eventual consistency
+
+
+🔁 Why DNS Exists (The Core Problem)
+➤ Without DNS:
+    ✔️ You would need to remember IP addresses
+    ✔️ IPs change (cloud, CDNs, failovers)
+    ✔️ Hard-coded IPs don’t scale
+
+➤ DNS solves:
+    ✔️ Indirection
+    ✔️ Decoupling identity from location
+    ✔️ Dynamic infrastructure
+👉 DNS is to the Internet what symbol tables are to compilers.
+
+
+🔁 DNS Design Goals
+DNS was designed to be:
+🌍 Globally scalable
+🧱 Decentralized
+🧠 Cache-friendly
+🔁 Fault tolerant
+🐢 Eventually consistent
+👉 It explicitly trades strong consistency for availability and speed.
+
+
+🔁 High-Level DNS Architecture
+                    Root Servers
+                         │
+                 TLD Servers (.com)
+                         │
+           Authoritative Name Servers
+                         │
+                 IP Address / Records
+👉 DNS is hierarchical, not flat.
+
+
+🔁 Core DNS Components
+1️⃣ Stub Resolver (Client Side)
+➤ Lives in:
+    ✔️ OS
+    ✔️ Browser
+➤ Sends DNS query
+➤ Has very small cache
+
+2️⃣ Recursive Resolver
+➤ Usually provided by:
+ ✔️ ISP
+ ✔️ Google (8.8.8.8)
+ ✔️ Cloudflare (1.1.1.1)
+➤ Does all the heavy lifting
+➤ Caches aggressively
+👉 Recursive resolvers are the workhorses of DNS
+
+3️⃣ Root Name Servers
+➤ Top of DNS hierarchy
+➤ Know: Where .com, .org, .in live
+➤ 13 logical root servers (A–M)
+➤ Backed by hundreds of Anycast instances
+
+4️⃣ TLD Name Servers
+➤ Handle:
+    ✔️ .com
+    ✔️ .org
+    ✔️ .in
+➤ Tell:
+    ✔️ Which authoritative server owns the domain
+
+5️⃣ Authoritative Name Servers
+➤ Source of truth for a domain
+➤ Owned by:
+    ✔️ Domain owner
+    ✔️ DNS provider
+➤ Return final DNS records
+
+
+🔁 Full DNS Resolution Flow
+Let’s resolve: www.example.com
+➤ Step 1️⃣: Client → Recursive Resolver
+"Give me IP for www.example.com"
+
+➤ Step 2️⃣: Resolver → Root Server
+"I don’t know .com, where is it?"
+
+Root replies: Ask .com TLD servers
+
+➤ Step 3️⃣: Resolver → .com TLD
+"Where is example.com?"
+TLD replies: Ask ns1.example.com
+
+➤ Step 4️⃣: Resolver → Authoritative Server
+"What is www.example.com?"
+Authoritative replies: 93.184.216.34
+
+➤ Step 5️⃣: Resolver → Client
+Returns IP
+Caches result
+
+
+🔁 Recursive vs Iterative Queries
+➤ Recursive
+    ✔️ Client expects final answer
+    ✔️ Used by browsers
+➤ Iterative
+    ✔️ Server gives referral
+    ✔️ Used internally by resolvers
+
+🔁 DNS Records
+DNS stores records, not just IPs.
+
+
+🔁 Common Record Types
+| Record | Purpose                 |
+| ------ | ----------------------- |
+| A      | IPv4 address            |
+| AAAA   | IPv6 address            |
+| CNAME  | Alias                   |
+| MX     | Mail server             |
+| TXT    | Verification, SPF, DKIM |
+| NS     | Name server             |
+| SRV    | Service discovery       |
+| PTR    | Reverse DNS             |
+
+
+🔁 CNAME vs A
+➤ A record → Direct mapping
+➤ CNAME → Pointer to another domain
+➤ CDNs heavily rely on CNAME: www.example.com → example.cdn.net
+
+🔁 DNS Caching
+Where Caching Happens
+    ✔️ Browser
+    ✔️ OS
+    ✔️ Recursive resolver
+    ✔️ CDN (sometimes)
+
+
+🔁 TTL (Time To Live)
+➤ www.example.com → 300 seconds
+➤ Means:
+    ✔️ Cache for 5 minutes
+    ✔️ After that → re-query
+➤ DNS never pushes updates, only expires caches.
+
+
+🔁 DNS Consistency Model
+➤ DNS is eventually consistent:
+    ✔️ Some users get old IP
+    ✔️ Some get new IP
+    ✔️ Depends on TTL expiration
+➤ This is intentional.
+
+
+🔁 DNS and Load Balancing
+DNS can return:
+    ➤ Multiple IPs
+    ➤ Different IPs based on:
+        ✔️ Geography
+        ✔️ Latency
+        ✔️ Health
+
+➤ Techniques:
+    ✔️ Round-robin DNS
+    ✔️ Geo DNS
+    ✔️ Latency-based DNS
+⚠️ DNS is not real-time load balancing.
+
+
+🔁 DNS and CDN (Strong Connection)
+➤ DNS is how CDN works: User → DNS → Nearest Edge IP
+➤ CDN providers:
+    ✔️ Dynamically answer DNS queries
+    ✔️ Use Anycast + Geo IP
+
+🔁 Anycast and DNS
+➤ Unicast
+    ✔️ One IP → one server
+➤ Anycast
+    ✔️ One IP → many servers
+    ✔️ Network routes to nearest one
+➤ DNS root servers and CDNs use Anycast heavily.
+
+
+🔁 DNS Security
+1️⃣ DNS Spoofing / Poisoning
+➤ Fake DNS replies
+➤ Redirect traffic
+
+2️⃣ DNSSEC
+➤ Cryptographic signing of DNS records
+➤ Ensures authenticity
+➤ Does not encrypt DNS
+
+3️⃣ DoH / DoT
+➤ DNS over HTTPS
+➤ DNS over TLS
+➤ Encrypts DNS queries
+
+
+🔁 Reverse DNS
+IP → Domain name
+👉 Uses:
+    ➤ PTR records
+    ➤ Important for:
+        ✔️ Email spam checks
+        ✔️ Logging
+
+
+🔁 DNS Zone Files (Authoritative View)
+✅ Zone file example:
+example.com.  300  IN  A     93.184.216.34
+www           300  IN  CNAME example.com.
+
+
+🔁 DNS Delegation
+DNS uses delegation, not replication.
+➤ Root delegates .com
+➤ .com delegates example.com
+➤ Authority is clearly defined
+
+
+🔁 Failure Handling in DNS
+➤ If Authoritative Server is Down
+    ✔️ Cached responses still served
+    ✔️ Secondary name servers exist
+
+➤ If Root Server is Down
+    ✔️ Anycast reroutes
+    ✔️ Other roots exist
+
+
+🔁 DNS Performance Characteristics
+➤ Average resolution: 10–50 ms
+➤ With cache hit: ~0 ms
+➤ One of the fastest systems on Earth
+
+
+🔁 DNS Limitations
+➤ No push updates
+➤ TTL delays
+➤ Not transactional
+➤ Not strongly consistent
+
+
+🔁 Mental Model
+DNS is a globally distributed, hierarchical, cache-first, eventually consistent naming database
+
+
+🔁 DNS vs CDN
+| DNS             | CDN              |
+| --------------- | ---------------- |
+| Name resolution | Content delivery |
+| Returns IPs     | Returns data     |
+| Control plane   | Data plane       |
+| Low traffic     | Massive traffic  |
+👉 DNS decides where to go, CDN serves content.
+
+
+🔁 Real-World DNS Providers
+➤ Route 53
+➤ Cloudflare DNS
+➤ Google DNS
+➤ Akamai DNS
+
+2️⃣4️⃣ When DNS Becomes Critical
+➤ Multi-region systems
+➤ Failover architectures
+➤ CDNs
+➤ Zero-downtime migrations
+
+
+🔁 Final Insight 
+Every web request starts with DNS
+If DNS is slow, broken, or misconfigured — nothing else matters.
