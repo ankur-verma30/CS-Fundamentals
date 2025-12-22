@@ -1,0 +1,198 @@
+🔁 PHASE-1: Requirement Clarification
+
+🔄 Functional Requirements
+➤ User uploads videos
+➤ Users watch videos
+➤ Search videos
+➤ Like / comment
+➤ Subscribe to channels
+➤ Recommendation feed
+➤ View count
+
+
+🔄 Out of Scope
+➤ Live streaming
+➤ Ads system
+➤ Copyright claims
+➤ Creator monetization
+
+
+🔄 Non-Functional Requirements
+| Requirement        | Expectation       |
+| ------------------ | ----------------- |
+| Scale              | Billions of users |
+| Upload reliability | Very high         |
+| Watch latency      | < 2 sec           |
+| Availability       | 99.99%            |
+| Consistency        | Eventual OK       |
+| Storage            | Massive           |
+👉 “Uploads must never be lost, but recommendations can be eventually consistent.”
+
+
+🔁 PHASE-2: High-Level Architecture
+Client (Web / Mobile / TV)
+        ↓
+API Gateway
+        ↓
+Microservices
+   ├── User Service
+   ├── Video Service
+   ├── Search Service
+   ├── Recommendation Service
+        ↓
+Databases + Cache
+        ↓
+CDN (Video Delivery)
+
+
+🔄 Key Principle
+➤ Control Plane → YouTube servers
+➤ Data Plane → CDN
+👉 “Backend never streams videos directly.”
+
+
+🔁 PHASE-3: Core Services
+| Service              | Responsibility  |
+| -------------------- | --------------- |
+| Auth Service         | User identity   |
+| Video Upload Service | Upload handling |
+| Video Processing     | Transcoding     |
+| Video Metadata       | Title, tags     |
+| Feed Service         | Home feed       |
+| Recommendation       | Ranking         |
+| Comment Service      | Comments        |
+| Subscription Service | Channel subs    |
+
+
+🔁 PHASE-4: Video Upload
+🔥 Upload Flow
+Client
+ → Request upload URL
+ → Upload to Object Storage
+ → Metadata saved
+ → Event to Kafka
+ → Processing pipeline
+
+🔄 Why Pre-Signed URL?
+➤ Avoid backend overload
+➤ Support large files
+➤ Resume uploads
+
+👉 “Upload traffic bypasses application servers.”
+
+
+🔁 PHASE-5: Video Processing Pipeline
+Raw Video
+ → Transcoding Workers
+ → Multiple Resolutions
+ → Thumbnails
+ → Store in Object Storage
+ → Push to CDN
+
+🔄 Technologies
+| Component   | Tech         |
+| ----------- | ------------ |
+| Queue       | Kafka        |
+| Transcoding | FFmpeg       |
+| Storage     | S3           |
+| Workers     | Auto-scaling |
+
+
+🔁 PHASE-6: Video Streaming
+🔥 Streaming Flow
+Client
+ → Fetch metadata
+ → Get manifest file
+ → Stream chunks from CDN
+
+🔄 Concepts You MUST Say
+➤ Chunk-based streaming
+➤ Adaptive Bitrate Streaming
+➤ Manifest files (HLS / DASH)
+👉 “Client dynamically switches quality based on bandwidth.”
+
+
+🔁 PHASE-7: CDN (CRITICAL)
+🔄 Why CDN?
+➤ Global users
+➤ Huge bandwidth
+➤ Low latency
+
+👉 YouTube:
+    ✔️ Uses Google CDN
+    ✔️ Edge caching
+    ✔️ Regional replication
+
+
+🔁 PHASE-8: Recommendation System (HIGH-LEVEL)
+🔄 Signals
+➤ Watch time
+➤ Likes
+➤ Comments
+➤ Subscriptions
+➤ Watch history
+
+👉 “Recommendations are primarily driven by watch time.”
+
+
+🔄 Architecture
+User Events
+ → Kafka
+ → Feature Store
+ → ML Models
+ → Ranked Feeds
+ → Redis Cache
+
+
+🔁 PHASE-9: Search System
+➤ Elasticsearch
+➤ Inverted index
+➤ Autocomplete
+➤ Language aware
+
+
+🔁 PHASE-10: Likes, Comments & Views
+🔄 View Count
+➤ Event-based
+➤ Batched aggregation
+➤ Avoid double counting
+
+👉 “View counts are approximate in real time.”
+
+
+🔁 PHASE-11: Database Design
+| Data           | Tech      |
+| -------------- | --------- |
+| User data      | MySQL     |
+| Video metadata | Cassandra |
+| Watch history  | Cassandra |
+| Comments       | Cassandra |
+| Cache          | Redis     |
+
+
+🔁 PHASE-12: Scalability
+➤ Stateless services
+➤ Auto-scaling
+➤ Sharding by video_id
+➤ CDN offload
+
+
+🔁 PHASE-13: Reliability & Fault Tolerance
+➤ Upload retries
+➤ DLQ for failed processing
+➤ Graceful quality downgrade
+➤ Multi-CDN fallback
+
+
+🔁 PHASE-14: Security
+➤ HTTPS
+➤ Signed URLs
+➤ DRM
+➤ Content access control
+
+
+🎯 COMMON TRAPS
+❌ Streaming videos from backend servers
+❌ Forgetting transcoding
+❌ Treating view count as strongly consistent
+❌ Ignoring CDN

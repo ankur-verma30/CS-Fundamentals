@@ -1,0 +1,197 @@
+🔁 PHASE-1: Requirement Clarification
+🔄 Functional Requirements (Core)
+➤ User can browse content 
+➤ User can search movies/series
+➤ User can stream videos
+➤ Resume playback
+➤ Personalized recommendations
+➤ Multi-device support
+
+
+🔄 Out of Scope (Explicitly Mention)
+➤ Content creation
+➤ Live streaming
+➤ Ads platform
+➤ Payments (assume handled separately)
+
+
+🔄 Non-Functional Requirements 
+| Requirement   | Expectation     |
+| ------------- | --------------- |
+| Scale         | 200M+ users     |
+| Latency       | Startup < 2 sec |
+| Availability  | Very high       |
+| Video Quality | Adaptive        |
+| Consistency   | Eventual OK     |
+| Global Reach  | Yes             |
+👉 “Low startup latency and uninterrupted playback are top priorities.”
+
+
+🔁 PHASE-2: High-Level Architecture
+Client (TV / Mobile / Web)
+        ↓
+API Gateway
+        ↓
+Microservices
+   ├── User Service
+   ├── Catalog Service
+   ├── Search Service
+   ├── Recommendation Service
+        ↓
+Metadata DB + Cache
+        ↓
+CDN (Video Delivery)
+
+
+🔄 Core Idea
+➤ Metadata & control plane → Netflix servers
+➤ Video delivery → CDN (Open Connect)
+👉 “Netflix separates control plane from data plane.”
+
+
+🔁 PHASE-3: Core Services Breakdown
+| Service          | Responsibility  |
+| ---------------- | --------------- |
+| Auth Service     | Login & tokens  |
+| Catalog Service  | Movies, genres  |
+| Search Service   | Text search     |
+| Playback Service | Streaming logic |
+| Recommendation   | Personalization |
+| Viewing History  | Resume playback |
+
+
+🔁 PHASE-4: Video Upload & Processing (BACKEND SIDE)
+Even though Netflix ingests content, interviewers expect this.
+
+🔥 Video Processing Pipeline
+Upload
+ → Object Storage
+ → Kafka
+ → Transcoding Workers
+ → Store multiple resolutions
+ → CDN distribution
+
+
+🔄 Why Transcoding?
+➤ Different devices
+➤ Different network speeds
+Formats: 240p, 480p, 720p, 1080p, 4K
+
+🔄 Tech
+| Component  | Tech         |
+| ---------- | ------------ |
+| Storage    | S3           |
+| Processing | FFmpeg       |
+| Queue      | Kafka        |
+| CDN        | Open Connect |
+
+
+🔁 PHASE-5: Video Streaming (CORE INTERVIEW PART)
+🔥 Streaming Flow
+Client
+ → Request metadata
+ → Get manifest (MPD)
+ → Fetch video chunks from CDN
+
+
+🔄 Key Concepts
+➤ Chunked video
+➤ Adaptive Bitrate Streaming
+➤ Manifest files
+
+Protocols:
+    ✔️ DASH
+    ✔️ HLS
+👉 “Client dynamically switches resolution based on bandwidth.”
+
+
+🔁 PHASE-6: CDN
+🔄 Netflix Open Connect
+➤ ISP-level caching
+➤ Edge servers close to users
+➤ Reduces backbone traffic
+👉 “Netflix runs its own CDN instead of relying solely on third-party CDNs.”
+
+
+🔄 Cache Strategy
+| Data            | Location   |
+| --------------- | ---------- |
+| Video chunks    | Edge CDN   |
+| Metadata        | Redis      |
+| Popular content | Pre-warmed |
+
+
+🔁 PHASE-7: Resume Playback
+🔄 Flow
+1️⃣ Client sends progress
+2️⃣ Stored in viewing history
+3️⃣ Resumed on next device
+
+➤ Schema:
+user_id
+content_id
+timestamp
+progress_seconds
+
+
+🔁 PHASE-8: Recommendation System (HIGH-LEVEL)
+🔄 Signals
+➤ Watch time
+➤ Likes
+➤ Search history
+➤ Device
+➤ Time of day
+👉 “Recommendations are generated offline and refined online.”
+
+
+🔄 Architecture
+User Events
+ → Kafka
+ → Feature Store
+ → ML Models
+ → Precomputed Rows
+ → Redis Cache
+
+
+🔁 PHASE-9: Search System
+➤ Elasticsearch
+➤ Autocomplete
+➤ Fuzzy matching
+➤ Language aware
+
+
+🔁 PHASE-10: Database Design
+| Data            | Tech      |
+| --------------- | --------- |
+| User data       | MySQL     |
+| Metadata        | Cassandra |
+| Viewing history | Cassandra |
+| Cache           | Redis     |
+
+
+🔁 PHASE-11: Scalability & Reliability
+🔄 Scalability
+➤ Stateless services
+➤ Auto-scaling
+➤ Geo-replication
+
+
+🔄 Reliability
+➤ Circuit breakers
+➤ Fallback CDN
+➤ Graceful quality downgrade
+👉 “We prefer reduced quality over playback failure.”
+
+
+🔁 PHASE-12: Security
+➤ DRM (Widevine, PlayReady)
+➤ HTTPS
+➤ Tokenized URLs
+➤ Geo-blocking
+
+
+🎯 COMMON TRAPS
+❌ Ignoring CDN
+❌ Sending video via backend servers
+❌ Forgetting adaptive bitrate
+❌ Treating recommendation as real-time only

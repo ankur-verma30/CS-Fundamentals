@@ -1,0 +1,293 @@
+WebSocket is a full-duplex, persistent, application-layer protocol built on top of TCP, designed to enable:
+    ✔️ Bidirectional communication
+    ✔️ Low-latency messaging
+    ✔️ Server-initiated pushes
+WebSockets convert the web from a request-response model into a real-time message stream.
+
+
+🔁 Why WebSockets Exist (The Core Problem)
+HTTP Limitations for HTTP (1.1 / 2) is:
+    ✔️ Client-initiated only
+    ✔️ Stateless
+    ✔️ Request → Response → Close
+
+To simulate real-time:
+    ✔️ Polling ❌
+    ✔️ Long polling ⚠️
+    ✔️ Server-Sent Events (one-way)
+
+These are:
+    ✔️ Inefficient
+    ✔️ High latency
+    ✔️ Resource heavy
+
+
+🔁 What WebSockets Fix
+| Problem               | WebSockets   |
+| --------------------- | ----------   |
+| Server push           | ✅          |
+| Real-time             | ✅          |
+| Bidirectional         | ✅          |
+| Persistent connection | ✅          |
+| Low overhead          | ✅          |
+
+
+🔁 High-Level WebSocket Architecture
+Client (Browser / App)
+        │
+        │  HTTP Upgrade
+        ▼
+WebSocket Server
+        │
+        │  Persistent TCP Connection
+        ▼
+Application Logic
+
+
+🔁 WebSocket Handshake (CRITICAL)
+Step 1️⃣: Initial HTTP Request
+
+WebSocket starts as HTTP.
+GET /chat HTTP/1.1
+Host: example.com
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: random_base64
+Sec-WebSocket-Version: 13
+
+
+Step 2️⃣: Server Response
+HTTP/1.1 101 Switching Protocols
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Accept: hashed_key
+
+👉 After this:
+    ✔️ HTTP is gone
+    ✔️ Raw WebSocket protocol begins
+
+
+🔁 Why HTTP Upgrade Is Used
+➤ Firewalls allow HTTP
+➤ Proxies understand HTTP
+➤ No new port required (80 / 443)
+🌟 WebSocket ≠ new protocol stack
+👉 It reuses HTTP for bootstrapping
+
+
+🔁 WebSocket Connection Lifecycle
+CONNECT → OPEN → MESSAGE ↔ MESSAGE → CLOSE
+
+👉 States:
+1️⃣ CONNECTING
+2️⃣ OPEN
+3️⃣ CLOSING
+4️⃣ CLOSED
+
+
+🔁 WebSocket Data Framing (Protocol Internals)
+➤ Messages Are Split into Frames
+➤ Each frame has:
+    ✔️ FIN bit
+    ✔️ Opcode (text, binary, close, ping)
+    ✔️ Mask
+    ✔️ Payload length
+    ✔️ Payload data
+
+
+🔁 Opcode Types
+| Opcode | Meaning |
+| ------ | ------- |
+| 0x1    | Text    |
+| 0x2    | Binary  |
+| 0x8    | Close   |
+| 0x9    | Ping    |
+| 0xA    | Pong    |
+
+
+🔁 Masking (Security Feature)
+➤ Client → Server frames are masked
+➤ Server → Client frames are not
+
+Purpose:
+    ✔️ Prevent cache poisoning
+    ✔️ Prevent proxy misinterpretation
+
+
+🔁 Full Duplex Communication
+Unlike HTTP: Client ↔ Server
+Both can:
+    ✔️ Send messages anytime
+    ✔️ Without waiting
+
+
+🔁 Latency Characteristics
+| Method       | Latency       |
+| ------------ | ------------- |
+| Polling      | High          |
+| Long polling | Medium        |
+| SSE          | Low (one-way) |
+| WebSocket    | Very Low      |
+
+
+🔁 WebSocket vs HTTP/2 vs SSE
+| Feature         | WebSocket | SSE | HTTP/2       |
+| --------------- | --------- | --- | -------      |
+| Bidirectional   | ✅        | ❌ | ❌           |
+| Server push     | ✅        | ✅ | Limited      |
+| Binary support  | ✅        | ❌ | ❌           |
+| Browser support | ✅        | ✅ | ✅           |
+| Complexity      | Medium    | Low | High         |
+
+
+🔁WebSockets Are Stateful
+➤ Each connection:
+    ✔️ Holds memory
+    ✔️ Holds file descriptor
+    ✔️ Holds TCP socket
+➤ Implication:
+    ✔️ Scaling is harder than HTTP
+
+
+🔁 Scaling WebSocket Systems 
+🚫 Problem
+➤ User connects to one server
+➤ Messages may originate elsewhere
+
+✅ Solution Patterns
+1️⃣ Sticky Sessions
+➤  Same client → same server
+➤  Load balancer with session affinity
+❌ Limits horizontal scaling
+
+
+2️⃣ Pub/Sub Backbone (Recommended)
+Client ↔ WS Server ↔ Message Broker ↔ WS Server ↔ Client
+
+👉 Using:
+    ✔️ Redis Pub/Sub
+    ✔️ Kafka
+    ✔️ NATS
+
+
+🔁 WebSocket and Load Balancers
+Load balancer must support:
+    ✔️ TCP
+    ✔️ Long-lived connections
+    ✔️ No aggressive timeouts
+
+Common choices:
+    ✔️ NGINX
+    ✔️ HAProxy
+    ✔️ AWS ALB (with caveats)
+
+
+🔁 Heartbeats (Ping / Pong)
+➤ Why needed:
+    ✔️ Detect dead connections
+    ✔️ Keep NAT/firewalls alive
+
+➤ Mechanism:
+    ✔️ Server → Ping
+    ✔️ Client → Pong
+
+
+🔁 Failure Scenarios
+Network Drop
+    ✔️ No FIN packet
+    ✔️ Server detects via heartbeat timeout
+
+Server Crash
+    ✔️ Client reconnects
+    ✔️ Needs reconnection logic
+
+
+🔁  WebSocket Security
+TLS: wss:// (mandatory in production)
+
+➤ Authentication
+During handshake:
+    ✔️ Cookies
+    ✔️ Headers
+    ✔️ Tokens
+⚠️ No headers after handshake
+
+
+🔁 WebSocket and Authorization
+✅ Best practice:
+    ✔️ Authenticate once
+    ✔️ Attach user to connection context
+
+❌ Avoid:
+    ✔️ Per-message auth checks
+
+
+🔁 WebSocket Use Cases
+➤ Chat applications
+➤ Multiplayer games
+➤ Live dashboards
+➤ Stock price updates
+➤ Collaborative editors
+➤ Real-time notifications
+
+
+🔁 WebSocket vs gRPC Streaming
+| WebSocket      | gRPC             |
+| -------------- | ---------------- |
+| Browser-native | Server-to-server |
+| Text / Binary  | Protobuf         |
+| Simple         | Typed            |
+
+
+🔁 CDN and WebSockets
+➤ Traditional CDNs don’t cache WebSockets
+➤ Some CDNs proxy WS traffic
+➤ Cloudflare supports WS at edge
+
+
+🔁 Observability Challenges
+Harder than HTTP:
+➤ Long-lived connections
+➤ Fewer logs
+➤ Need:
+    ✔️ Connection metrics
+    ✔️ Message rates
+    ✔️ Heartbeat failures
+
+
+🔁 Common Mistakes
+➤ Assuming WS scales like HTTP
+➤ Not handling reconnects
+➤ Not limiting connections
+➤ Ignoring backpressure
+
+
+🔁 Mental Model
+WebSocket = Persistent TCP pipe with message framing and full duplex communication
+
+
+🔁 When NOT to Use WebSockets
+➤ Simple request-response APIs
+➤ Low traffic updates
+➤ One-way streaming (use SSE)
+➤ Serverless environments (without WS support)
+
+
+🔁 WebSocket vs TCP Socket
+WebSocket adds:
+    ✔️ Browser compatibility
+    ✔️ Framing
+    ✔️ Security constraints
+    ✔️ Standardization
+
+
+🔁 Insight
+➤ WebSockets trade stateless scalability for real-time interactivity.
+➤ You gain:
+    ✔️ Speed
+    ✔️ Push
+    ✔️ Bidirectionality
+
+➤ You lose:
+    ✔️ Simplicity
+    ✔️ Statelessness

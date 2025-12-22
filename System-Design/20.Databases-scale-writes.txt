@@ -1,0 +1,190 @@
+🔁 Problem Context: Scaling Database Writes
+➤ Client sends data → Server → Database
+➤ Database must persist state reliably
+➤ Main challenges at scale:
+  ✔️ Too many acknowledgments (request–response overhead)
+  ✔️ Too many I/O calls (disk is slow)
+  ✔️ High latency for writes
+
+
+🔁 Traditional Database Approach
+🔄 B+ Tree as Core Data Structure
+➤ Used by traditional relational databases
+➤ Characteristics:
+  ✔️ Multi-way tree (not binary)
+  ✔️ Optimized for disk-based storage
+➤ Time Complexity:
+  ✔️ Insert → O(log n)
+  ✔️ Search → O(log n)
+➤ Every SQL `INSERT` / `SELECT`:
+  ✔️ Translates to B+ tree operations
+  ✔️ Requires disk I/O + acknowledgment
+
+
+🔄 Limitation
+➤ Too many small writes → too many I/O calls
+➤ Each operation waits for DB acknowledgment
+
+
+🔁 First Optimization Idea: Batch Writes
+🔄 Concept
+➤ Condense multiple write queries into one block
+➤ Send to DB in one shot
+➤ Receive single acknowledgment
+
+
+🔄 Advantages
+➤ Fewer I/O operations
+➤ Better bandwidth utilization
+➤ Lower request–response overhead
+
+
+🔄 Drawback
+➤ Requires extra memory on server to buffer writes
+➤ Trade-off accepted (memory is cheaper than I/O)
+
+🔁 Fastest Data Structure for Writes
+🔄 Linked List (Log)
+➤ Append-only structure
+➤ Insert at tail → O(1)
+
+🔄 Key Insight
+➤ Log behaves like a linked list
+➤ Perfect for write-heavy workloads
+
+🔄 Write Path
+➤ Writes are appended sequentially
+➤ Minimal disk seek
+
+
+🔁 Major Problem with Logs
+🔄 Read Performance
+➤ Sequential scan required
+➤ Search → O(n)
+➤ Completely unacceptable at scale (e.g., Facebook feed)
+
+
+🔁 Solution Direction
+🔄 Goal
+➤ Keep:
+  ✔️ Fast writes (log)
+  ✔️ Reduced I/O
+➤ Avoid: Slow reads
+
+🔄 Key Idea
+➤ Writes → Log / Linked List
+➤ Reads → Sorted structure (binary searchable)
+
+
+🔁 Sorted String Table (SSTable)
+➤ Immutable, sorted set of key-value records
+➤ Stored on disk
+
+🔄 Process
+1️⃣ Writes go to in-memory log
+2️⃣ When threshold is reached:
+   ✔️ Data is sorted
+   ✔️ Persisted to disk as an SSTable
+
+🔄 Benefits
+➤ Binary search possible
+➤ Read → O(log n)
+
+
+🔁 Multiple SSTables Problem
+🔄 Scenario
+➤ Multiple flushes create multiple SSTables
+➤ Each SSTable is sorted
+
+🔄 Read Cost
+➤ Search every SSTable
+➤ Time ≈ (number of SSTables) × log(size)
+➤ Still slow at scale
+
+
+🔁 9. Compaction
+➤ Background process
+➤ Merges multiple SSTables into larger SSTables
+
+🔄 Merge Logic
+➤ Similar to merge step of merge sort
+➤ Two sorted arrays merged using two pointers
+
+✅ Example
+➤ Two SSTables of size 6 → one SSTable of size 12
+➤ Two SSTables of size 12 → one SSTable of size 24
+
+
+🔁 Compaction Strategy
+🔄 Size-Tiered Compaction
+➤ Merge SSTables of same size
+➤ Growth pattern:
+  ✔️ 6 → 12 → 24 → 48 → … → n
+
+🔄 Benefit
+➤ Reduces number of SSTables
+➤ Reduces read amplification
+
+
+🔁 Read Complexity Comparison
+1️⃣ Without Compaction
+➤ Many small SSTables
+➤ Read cost ≈ k × log(m)
+
+2️⃣ With Compaction
+➤ Few large SSTables
+➤ Read cost ≈ log(total records)
+
+
+🔁 Bloom Filters
+➤ Avoid unnecessary SSTable reads
+
+🔄 Properties
+➤ Probabilistic data structure
+➤ Can have false positives
+➤ Cannot have false negatives
+
+
+🔄 Usage in LSM(Log-Structured Merge) Tree
+➤ Each SSTable has its own Bloom filter
+➤ Before searching SSTable:
+  ✔️ Check Bloom filter
+  ✔️ If false → skip SSTable entirely
+
+
+🔁 Bloom Filter Tuning
+➤ Larger SSTable → larger Bloom filter
+➤ More bits → lower false positive rate
+➤ Reduces disk reads
+
+
+🔁 End-to-End LSM Tree Workflow
+1️⃣ Writes appended to in-memory log (O(1))
+2️⃣ Log reaches threshold
+3️⃣ Data sorted → written as SSTable
+4️⃣ Multiple SSTables exist
+5️⃣ Background compaction merges SSTables
+6️⃣ Bloom filters speed up reads
+
+
+🔁 Key Terminology
+➤ Log: Append-only write structure
+➤ MemTable: In-memory sorted buffer (implied)
+➤ SSTable (Sorted String Table): Immutable sorted disk table
+➤ Compaction: Merging SSTables
+➤ Bloom : Probabilistic read-avoidance structure
+➤ Write : Extra writes due to compaction
+➤ Read : Multiple SSTables per read
+
+
+🔁 Why LSM Trees Are Use
+➤ Write-heavy systems
+➤ Sequential disk writes
+➤ High throughput
+
+
+🔄 Real-World Systems
+➤ Cassandra
+➤ RocksDB
+➤ LevelDB
+➤ HBase
