@@ -1,0 +1,198 @@
+🔁 PHASE-1: Requirement Clarification
+🔄 Functional Requirements (Core)
+Say this clearly:
+    ✔️ 1-to-1 messaging
+    ✔️ Group chats
+    ✔️ Message delivery status (sent, delivered, read)
+    ✔️ Online / last seen status
+    ✔️ Media sharing (images, videos, docs)
+    ✔️ Push notifications
+
+
+🔄 Out of Scope (State explicitly)
+➤ Status (stories)
+➤ Payments
+➤ Voice / video calls
+➤ Ads
+👉 Interviewers like scope control.
+
+
+🔄 Non-Functional Requirements (CRITICAL)
+| Requirement  | Expectation         |
+| ------------ | ------------------- |
+| Latency      | Real-time (<100 ms) |
+| Availability | Very high           |
+| Consistency  | Strong per chat     |
+| Scale        | 1B+ users           |
+| Durability   | No message loss     |
+| Ordering     | Guaranteed          |
+👉 “Message ordering and durability are non-negotiable.”
+
+
+🔁 PHASE-2: High-Level Architecture
+Mobile App
+   ↓
+WebSocket / TCP
+   ↓
+Load Balancer
+   ↓
+Chat Servers (Stateful)
+   ↓
+Message Queue (Kafka)
+   ↓
+Databases + Cache
+
+
+🔄 Key Architectural Decisions
+➤ Persistent connection (WebSocket / TCP)
+➤ Stateful chat servers
+➤ Async delivery
+➤ Store-and-forward model
+“Unlike Instagram, WhatsApp uses long-lived connections.”
+
+
+🔁 PHASE-3: Core Services
+| Service              | Responsibility          |
+| -------------------- | ----------------------- |
+| Auth Service         | User identity           |
+| Connection Service   | Maintain sockets        |
+| Chat Service         | Send / receive messages |
+| Message Store        | Durable storage         |
+| Notification Service | Offline push            |
+| Media Service        | Media upload/download   |
+
+
+🔁 PHASE-4: Message Sending
+🔥 1-to-1 Message Flow
+Sender App
+ → WebSocket
+ → Chat Server
+ → Persist Message
+ → Deliver to Receiver
+ → ACKs
+
+🔄 Step-by-Step
+1️⃣ Sender sends message via socket
+2️⃣ Chat server assigns message_id
+3️⃣ Message stored in DB
+4️⃣ If receiver online → push instantly
+5️⃣ If offline → queue message
+5️⃣ Delivery ACK updated
+👉 “Message is persisted before delivery to avoid loss.”
+
+🔄 Message Schema
+message_id (PK)
+chat_id
+sender_id
+content
+timestamp
+status
+
+🔁 PHASE-5: Message Ordering (INTERVIEW FAVORITE)
+🔄 Problem
+➤ Distributed servers → out-of-order messages
+
+✔️ Solution
+➤ Per-chat sequence number
+➤ Assigned by chat server
+
+👉 “Ordering is guaranteed per chat, not globally.”
+
+🔁 PHASE-6: Online / Offline Handling
+🔄 Online Users
+➤ Socket connected
+➤ Stored in memory / Redis
+
+🔄 Offline Users
+➤ Messages stored
+➤ Push notification sent
+
+👉 Tech:
+➤ Redis (presence)
+➤ FCM / APNs (push)
+
+
+🔁 PHASE-7: Read Receipts (✔️✔️ TICK, DOUBLE TICK, BLUE TICK)
+🔄 Status Flow
+| Status    | Meaning          |
+| --------- | ---------------- |
+| Sent      | Server received  |
+| Delivered | Receiver device  |
+| Read      | User opened chat |
+
+🔄 Storage
+➤ Status stored per message
+➤ Updated asynchronously
+
+
+🔁 PHASE-8: Group Chats (HARD PART)
+🔥 Group Message Flow
+Sender
+ → Chat Server
+ → Fan-out to group members
+
+🔄 Group Challenges
+➤ Fan-out explosion
+➤ Partial delivery failures
+➤ Consistency
+
+✔️ Solutions
+➤ Server-side fan-out
+➤ Batched writes
+➤ Retry queues
+
+👉 “Groups trade latency for reliability.”
+
+
+🔁 PHASE-9: Media Sharing
+🔄 Flow
+Client
+ → Get pre-signed URL
+ → Upload to S3
+ → Send media reference
+👉 Media is not sent via chat servers.
+
+
+🔁 PHASE-10: Database Design
+🔄 Choice
+| Data     | Tech      |
+| -------- | --------- |
+| Messages | Cassandra |
+| Users    | SQL       |
+| Presence | Redis     |
+| Media    | S3        |
+
+👉 Why Cassandra?
+➤ High write throughput
+➤ Partitioned by chat_id
+
+
+🔁 PHASE-11: Scaling Strategy
+🔄 Chat Servers
+➤ Sharded by user_id
+➤ Sticky connections
+
+🔄 DB Scaling
+➤ Partition by chat_id
+➤ Replication
+
+🔁 PHASE-12: Reliability & Fault Tolerance
+➤ Message retries
+➤ Idempotent message_id
+➤ WAL logs
+➤ DLQ in Kafka
+
+
+🔁 PHASE-13: Security 
+➤ End-to-end encryption
+➤ TLS
+➤ Key exchange (Signal protocol)
+➤ Message encrypted at client
+👉 “Servers cannot read message content.”
+
+
+🎯 COMMON TRAPS
+❌ Ignoring message ordering
+❌ Using HTTP instead of sockets
+❌ Forgetting offline users
+❌ Not persisting before delivery
