@@ -1,0 +1,436 @@
+🔁 PHASE-0: When interviewer says: "Design Instagram"
+
+Your brain should immediately think:
+1️⃣ Clarify requirements
+2️⃣ Identify core features
+3️⃣ High-level architecture
+4️⃣ Deep dive one feature at a time
+5️⃣ Scale & trade-offs
+
+🔁 PHASE-1: Requirement Clarification
+🔄 Functional Requirements (Core)
+
+Let’s explicitly say these in interview:
+    ✔️️ User can sign up / login
+    ✔️ User can upload photos & videos
+    ✔️ User can follow / unfollow users
+    ✔️ User can view feed
+    ✔️ User can like & comment
+    ✔️ User can view profiles
+👉 Call this “MVP scope”
+
+🔄 Out of Scope
+✔️ Direct Messages - Can follow WhatsApp System Design
+✔️ Ads
+✔️ Analytics dashboard
+👉 This shows scope control, interviewers like this.
+
+
+🔄 Non-Functional Requirements 
+| Requirement         | Expectation             |
+| ------------------- | ----------------------- |
+| Scale               | 100M+ users             |
+| Feed Latency        | < 200 ms                |
+| Upload Availability | High                    |
+| Read/Write          | **Read heavy**          |
+| Consistency         | Eventual consistency OK |
+| Reliability         | No post loss            |
+👉 Say explicitly: “Feed can tolerate eventual consistency, but uploads cannot lose data.”
+
+
+🔄 Clarifying Questions (Ask interviewer)
+Ask 2–3:
+    ✔️ Is feed chronological or ranked?
+    ✔️ Do users mostly view home feed or profiles?
+    ✔️ Expected daily active users?
+👉 Assume:
+    ✔️ Chronological feed
+    ✔️ Global scale
+
+
+🔁 PHASE-2: High-Level Architecture
+
+🔷 Components
+Mobile App / Web
+        ↓
+API Gateway
+        ↓
+Load Balancer
+        ↓
+Microservices
+   ├── User Service
+   ├── Post Service
+   ├── Feed Service
+   ├── Like/Comment Service
+        ↓
+Databases + Cache + Queue
+
+
+🔄 Why Microservices?
+➤ Independent scaling
+➤ Different traffic patterns
+➤ Faster deployments
+👉 “Feed and Post services have very different scaling needs.”
+
+
+🔁 PHASE-3: Core Data Model (High-Level)
+🔄 User Table
+user_id (PK)
+username
+email
+created_at
+
+
+🔄 Post Table
+post_id (PK)
+user_id (FK)
+media_url
+caption
+created_at
+
+
+🔄 Follow Table
+follower_id
+following_id
+
+🔄 Likes / Comments: Separate tables or services
+
+👉 Tech Choice
+    ✔️ Metadata → SQL / Cassandra
+    ✔️ Media → Object Storage (S3)
+
+
+🔁 PHASE-4: Feature Deep Dive
+We now go feature by feature.
+
+🔥 FEATURE-1: Photo Upload (DEEP DIVE)
+⚡ Flow
+Client
+ → Upload Request
+ → API Server
+ → Object Storage (S3)
+ → Metadata DB
+ → Feed Generation Trigger
+
+
+🔄 Step-by-Step
+1️⃣ Client requests pre-signed URL
+2️⃣ Client uploads directly to S3
+3️⃣ Post metadata stored in DB
+4️⃣ Event published to Kafka
+
+👉 Why pre-signed URL?
+    ✔️ Avoids API server overload
+    ✔️ Better scalability
+
+
+🔄 Tech Used
+| Component     | Tech       |
+| ------------- | ---------- |
+| Media Storage | AWS S3     |
+| Metadata      | Cassandra  |
+| Event         | Kafka      |
+| CDN           | CloudFront |
+
+
+🔄 Trade-off
+✔️ Eventual consistency in feed
+✔️ Upload reliability prioritized
+
+
+🔥 FEATURE-2: Feed Generation
+⚡ Two Approaches
+1️⃣ Fan-out on Write (Instagram uses this)
+When user posts:
+    ✔️ Push post to followers’ feed
+    ✔️ User Post → Feed Service → Followers’ Feed
+
+2️⃣ Fan-out on Read
+Generate feed at read time
+
+
+🔄 Why Fan-out on Write?
+| Reason              | Explanation |
+| ------------------- | ----------- |
+| Faster feed load    | Precomputed |
+| Read heavy          | 100x reads  |
+| Predictable latency | Yes         |
+👉 “Since feed reads dominate writes, we prefer fan-out on write.”
+
+
+🔄 Feed Storage
+feed_user_id
+post_id
+timestamp
+
+Stored in:
+    ✔️ Redis (hot feed)
+    ✔️ Cassandra (cold feed)
+
+
+🔥 FEATURE-3: Like & Comment
+🔄 Like Flow
+➤ API → Like Service
+➤ Update DB
+➤ Update cache
+➤ Async notification
+👉 Use idempotent APIs
+
+🔄 Comment Flow
+➤ Stored in DB
+➤ Paginated
+➤ Indexed by post_id
+
+
+🔥 FEATURE-4: Follow System
+➤ Graph-like relationship
+➤ Stored in Cassandra
+➤ Precompute follower count
+
+
+🔁 PHASE-5: Caching Strategy
+🔄 What to Cache?
+| Data          | Cache |
+| ------------- | ----- |
+| Feed          | Redis |
+| Profile       | Redis |
+| Post metadata | Redis |
+
+🔄 Cache Invalidation
+➤ On post
+➤ On follow/unfollow
+
+
+🔁 PHASE-6: Scalability
+🔄 Horizontal Scaling
+➤ Stateless services
+➤ Auto-scaling groups
+
+🔄 DB Scaling
+➤ Sharding by user_id
+➤ Consistent hashing
+
+
+🔁 PHASE-7: Reliability & Fault Tolerance
+➤ Kafka retries
+➤ S3 replication
+➤ Idempotent writes
+➤ Rate limiting
+
+
+🔁 PHASE-8: Security
+➤ JWT authentication
+➤ HTTPS everywhere
+➤ Media access via signed URLs
+➤ Rate limiting APIs
+
+
+📸 Instagram Extension: Stories & Reels (Deep System Design)
+
+🔁 PART-1: STORIES SYSTEM DESIGN
+🔄 What are Stories? (Define Clearly)
+➤ Photo / video
+➤ Visible for 24 hours
+➤ Appears at top
+➤ Ordered by recency
+➤ Strong read-heavy
+➤ Ephemeral data
+
+
+🔄 Functional Requirements (Stories)
+➤ User can upload story
+➤ Story auto-expires after 24 hours
+➤ Followers can view story
+➤ Track viewed / not viewed
+➤ Ordering by time
+
+
+🔄 Non-Functional Requirements
+| Aspect       | Requirement  |
+| ------------ | ------------ |
+| Latency      | Very low     |
+| Consistency  | Eventual OK  |
+| Storage      | Auto cleanup |
+| Availability | High         |
+
+
+🔥 Story Upload Flow (Deep Dive)
+⚡ Flow
+Client
+ → Get pre-signed URL
+ → Upload to Object Storage
+ → Metadata DB
+ → Story Event (Kafka)
+
+🔄 Storage Choices
+| Data         | Tech      |
+| ------------ | --------- |
+| Media        | S3        |
+| Metadata     | Cassandra |
+| Viewed State | Redis     |
+| Events       | Kafka     |
+
+
+🔄 Story Metadata Schema
+story_id (PK)
+user_id
+media_url
+created_at
+expires_at
+👉 expires_at = created_at + 24h
+
+
+🔥 Story Feed Generation
+❓ Fan-out or Pull?
+✔️ Hybrid Approach
+➤ Fan-out on write for small accounts
+➤ Pull model for celebrities
+
+👉 “Fan-out explodes for users with millions of followers, so we selectively pull.”
+
+
+🔄 Story Feed Storage
+story_feed_user_id
+story_id
+timestamp
+
+➤ Redis (hot)
+➤ Cassandra (cold)
+
+
+🔥 Story Expiry Handling 
+❌ DO NOT delete synchronously
+✔️ Use TTL-based deletion
+➤ Cassandra TTL
+➤ S3 lifecycle policies
+➤ Redis TTL
+
+
+🔥 Viewed / Not Viewed Tracking
+🔄 Why not DB?
+➤ Extremely high writes
+➤ Per-user per-story state
+
+✔️ Redis Bitmap / Set
+Key: story_viewed:{user_id}
+Value: set(story_ids)
+
+🔁 PART-2: REELS SYSTEM DESIGN
+🔄 What are Reels?
+➤ Short-form videos
+➤ Discoverable (not just followers)
+➤ Ranked feed
+➤ Extremely read heavy
+➤ ML-based ranking
+
+
+🔄 Functional Requirements (Reels)
+➤ Upload short videos
+➤ Infinite scrolling feed
+➤ Personalized recommendations
+➤ Likes, comments, shares
+➤ Looping playback
+
+
+🔄 Non-Functional Requirements
+| Aspect     | Requirement   |
+| ---------- | ------------- |
+| Latency    | Ultra-low     |
+| Throughput | Massive       |
+| Ranking    | Real-time-ish |
+| CDN        | Global edge   |
+
+
+🔥 Reels Upload Flow
+Same as video post but with:
+    ✔️ Video processing pipeline
+    ✔️ Transcoding
+    ✔️ Thumbnail generation
+
+🔄 Video Processing Architecture
+Upload → S3 → Kafka → Video Workers
+                     ├── Transcode
+                     ├── Generate thumbnails
+                     └── Store variants
+
+👉 Tech:
+    ✔️ FFmpeg
+    ✔️ AWS MediaConvert
+    ✔️ Async workers
+
+
+🔥 Reels Feed Generation (CORE)
+❌ NOT chronological
+✔️ Ranking-based feed
+
+
+🔄 Signals Used for Ranking
+➤ Watch time
+➤ Replays
+➤ Likes
+➤ Comments
+➤ Shares
+➤ Creator interaction
+
+
+🔄 Reels Architecture
+Client
+ → Reels API
+ → Feed Service
+ → Ranking Service
+ → Redis Cache
+ → Cassandra
+
+🔄 Precomputed Buckets
+➤ Popular
+➤ Trending
+➤ Personalized
+
+Stored in:
+    ✔️ Redis
+    ✔️ Updated via Kafka
+
+
+🔥 Infinite Scroll Optimization
+➤ Cursor-based pagination
+➤ Pre-fetch next batch
+➤ Cache next N reels
+
+
+🔁 PART-3: CACHING STRATEGY (Stories + Reels)
+| Component      | Cache |
+| -------------- | ----- |
+| Story feed     | Redis |
+| Reels feed     | Redis |
+| Trending reels | Redis |
+| Viewed state   | Redis |
+
+
+🔁 PART-4: SCALABILITY CHALLENGES
+🔄 Stories
+➤ Fan-out explosion
+➤ TTL cleanup
+➤ View tracking
+
+🔄 Reels
+➤ Hot content
+➤ Cache stampede
+➤ CDN pressure
+
+👉 Solutions:
+    ✔️ Hybrid fan-out
+    ✔️ Rate limiting
+    ✔️ Regional caching
+
+
+🔁 PART-5: FAILURE HANDLING
+➤ Kafka retries
+➤ Dead letter queues
+➤ Idempotent uploads
+➤ Graceful degradation
+
+🎯 COMMON TRAPS
+❌ Forgetting TTL for stories
+❌ Treating reels like posts
+❌ Ignoring celebrity fan-out problem
+❌ Not mentioning video processing
