@@ -1,0 +1,195 @@
+🔁 What is Consistency?
+➤ Consistency = multiple copies of the same data must match
+➤ If data item `C` exists at multiple locations, all replicas should reflect the same value
+➤ Appears in:
+    ✔️ CAP Theorem → C = Consistency
+    ✔️ Transactions (ACID) → C = Consistency
+
+
+🔁 Simplest Case: Single-Node System
+✅ Example: Early Facebook (Single Server at Harvard)
+➤ One server
+➤ One copy of data
+➤ All users connect to this server
+
+🔄 Properties
+➤ Reads always return latest data
+➤ No ambiguity → strong consistency
+
+🔄 Problems
+❌ Single Point of Failure (power loss, crash, network outage)
+❌ Vertical Scaling Limit (hardware ceiling, supercomputer cost)
+❌ High Latency for global users (Oxford → Harvard ≈ 100ms)
+
+
+🔁 First Attempt at Scaling: Data Splitting
+🔄 Regional Servers (Harvard + Oxford)
+➤ Each server stores local campus data only
+➤ No communication between servers
+
+🔄 Benefits
+✅ Reduced latency for local users
+✅ Reduced load per server
+
+🔄 Problems
+❌ No data sharing → breaks core Facebook use case
+❌ Still single point of failure per region
+❌ Cross-region reads still expensive
+
+
+🔁 Adding Caching
+🔄 Idea
+➤ Cache popular Oxford profiles in Harvard server
+
+🔄 Flow
+➤ Cache miss → fetch from Oxford
+➤ Store locally → future reads are fast
+
+🔄 Limitations
+❌ Cache misses still slow
+❌ Cache eviction causes latency spikes
+❌ Cache does NOT solve write consistency
+
+
+🔁 Replication: Multiple Copies of Data
+🔄 Key Idea
+➤ Store same data in multiple regions (US + Europe)
+
+🔄 Benefits
+✅ No single point of failure
+✅ Low read latency (local reads)
+✅ Better availability
+
+
+🔄 New Problem Introduced
+🚨 Consistency- How do updates propagate reliably?
+
+
+🔁 Update Propagation Problem
+🔄 Scenario
+➤ US updates `C → C++`
+➤ Europe must reflect same update
+
+🔄 Naive Approach
+➤ Send update via network (TCP)
+➤ Wait for acknowledgement
+
+🔄 Failure Scenarios
+➤ Network drops message
+➤ Server crashes
+➤ Acknowledgement lost
+
+
+🔁 Two Generals Problem (Core Theory)
+➤ Impossible to guarantee agreement using acknowledgements over unreliable networks
+➤ Infinite ACK-of-ACK chain
+➤ You can never be 100% sure both sides committed
+👉 Perfect coordination is impossible in unreliable distributed systems
+
+
+🔁 Leader–Follower Model
+🔄 Idea
+➤ Assign one node as Leader
+➤ Only leader accepts writes
+➤ Followers replicate leader state
+
+🔄 Pros
+➤ Simplifies write path
+➤ Avoids write conflicts
+
+🔄 Remaining Problem
+➤ If follower lags → stale reads
+➤ If reads block → system unavailable
+
+
+🔁 Consistency vs Availability Trade-off
+➤ If you:
+  ✔️ Wait for all replicas → consistent but unavailable
+  ✔️ Respond early → available but inconsistent
+👉 This is the CAP trade-off in practice
+
+
+🔁 Two-Phase Commit (2PC)
+🔄 Used When
+➤ Absolute consistency required
+➤ Financial systems, banking, ledgers
+
+🔄 Actors
+➤ Leader (Coordinator)
+➤ Multiple Followers (Participants)
+
+
+🔁 Phase 1: Prepare
+➤ Leader sends PREPARE to followers
+➤ Followers:
+    ✔️ Begin transaction
+    ✔️ Apply changes locally
+    ✔️ DO NOT commit
+    ✔️ Reply READY / ABORT
+
+
+🔁 Phase 2: Commit
+➤ If all followers reply READY:
+    ✔️ Leader commits locally
+    ✔️ Sends COMMIT to followers
+➤ Followers commit transaction
+
+
+🔁 Failure Handling in 2PC
+🔄 If PREPARE fails
+➤ Leader sends ROLLBACK
+➤ Followers revert changes
+
+🔄 If COMMIT message lost
+➤ Leader retries commit
+➤ Uses transaction IDs (idempotency)
+
+
+🔁 Blocking Problem in 2PC
+➤ Followers cannot decide independently
+➤ Must wait for leader decision
+➤ If leader crashes → followers block
+
+👉 System becomes:
+ ✅ Consistent
+ ❌ Not Available
+
+
+🔁 Read & Write Blocking
+➤ During commit:
+ ✔️ Reads blocked
+ ✔️ Writes blocked
+➤ Ensures strong consistency
+➤ Destroys availability
+
+
+🔁 Cost of Strong Consistency
+➤ High latency
+➤ Low throughput
+➤ Blocking behavior
+➤ Higher infrastructure cost
+
+
+🔁 Eventual Consistency
+System becomes consistent eventually, not immediately
+🔄 Properties
+➤ Fast writes
+➤ High availability
+➤ Temporary inconsistencies allowed
+
+
+🔄 Used In
+➤ Facebook feeds
+➤ Likes, comments
+➤ Shopping carts
+➤ Analytics
+
+
+🔁 Real-World Mapping
+➤ 2PC → Banking transactions
+➤ Leader-Follower → MySQL replication
+➤ Eventual Consistency → DynamoDB, Cassandra
+
+
+🔁 Key Takeaway
+Consistency is not free. Every extra guarantee costs latency, availability, or money.

@@ -2,7 +2,5 @@ what is long polling and how does it work?
 What are web sockets how they help in real time converstations?
 
 different format of video what is the concept behind them
-
 what is the concept of resolution and frame rate
-
 how netflix onboards new content breaking the video in the form of scenes and the concept behind it

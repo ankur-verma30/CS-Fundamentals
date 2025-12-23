@@ -1,0 +1,235 @@
+🔁 Problem Statement (Why Master–Slave?)
+➤ Clients → Load Balancer → Multiple App Servers → Single Database
+➤ Single Point of Failure (SPOF):
+   ✔️ If DB crashes → entire system stops
+➤ Goal:
+   ✔️ Improve availability
+   ✔️ Improve read scalability
+   ✔️ Provide fault tolerance
+
+
+🔁 Core Idea: Replication
+➤ Maintain copies of the database
+➤ Copies stored on different hardware (different machines / disks / racks)
+➤ If one DB fails → system can still serve requests
+
+
+🔁 Replication Models
+🔄 Asynchronous Replication
+➤ Master writes data
+➤ Slave copies data later
+
+✅ Pros
+➤ Low write latency
+➤ Less load on master
+
+❌ Cons
+➤ Data inconsistency possible
+➤ Data loss if master crashes before sync
+
+Use cases
+➤ Social media comments
+➤ Analytics
+➤ Non-critical reads
+
+
+🔄 Synchronous Replication
+➤ Master write completes only after slave confirms
+
+✅ Pros
+➤ Strong consistency
+➤ No data loss
+
+❌ Cons
+➤ Higher write latency
+➤ Slower system
+
+🔄 Reality check
+➤ True sync does not exist automatically
+➤ Enforced via transaction logs + protocols
+
+
+🔁 Master and Slave Roles
+🔄 Master
+➤ Accepts:
+   ✔️ Writes
+   ✔️ Reads
+➤ Maintains transaction log
+➤ Sends write commands to slaves
+
+🔄 Slave
+➤ Accepts:
+   ✔️ Reads only (in pure master–slave)
+➤ Replays master’s commands in the same order
+➤ Achieves same final state
+
+👉 Key Rule: Any database accepting writes is a Master
+
+
+🔁 Write Restriction Rule
+🔄 Why slaves should not accept writes?
+➤ Prevents conflicts
+➤ Ensures single source of truth
+
+🔄 Two Options:
+1️⃣ ❌ Never allow writes on slaves (classic master–slave)
+2️⃣ ⚠️ Allow writes → becomes Master–Master
+
+
+🔁 Master–Master (Peer-to-Peer) Architecture
+🔄 Characteristics
+➤ Multiple nodes accept writes
+➤ Data propagates bidirectionally
+➤ Appears:
+   ✔️ Highly available
+   ✔️ Load-balanced for writes
+
+🔄 Hidden Danger
+➤ Split Brain Problem
+
+
+🔁 Split Brain Problem
+➤ Nodes lose network connectivity
+➤ Each node assumes it is the master
+➤ Both accept writes independently
+
+✅ Example (Bank Account)
+ Balance = 120
+ Request to A: deduct 100
+ Request to B: deduct 50
+ Result: balance = -30 ❌
+
+🔄 Root Cause
+➤ Network partition ≠ node failure
+
+
+🔁 Solving Split Brain: Adding a Third Node
+🔄 Quorum-Based Approach
+➤ Nodes: A, B, C
+➤ Writes require majority agreement
+
+🔄 Assumption
+➤ Node failure + network failure together is rare
+
+
+🔁 State-Based Validation
+🔄 Initial State
+ A = S0, B = S0, C = S0
+
+🔄 Scenario
+➤ A updates → SX → propagated to C
+➤ B updates → SY → asks C
+➤ C rejects because:
+    ✔️ Previous state mismatch
+
+🔄 Outcome
+➤ B transaction rolls back
+➤ B syncs to SX
+➤ Client retries safely
+
+
+🔁 Transactions & Rollbacks
+➤ State changes are tentative
+➤ Commit happens only after:
+   ✔️ All required nodes acknowledge
+➤ Prevents permanent corruption
+
+
+🔁 Distributed Consensus Multiple nodes agree on a single value/state
+
+🔄 Popular Protocols
+➤ 2PC (Two-Phase Commit)
+    ✔️ Simple
+    ✔️ Very slow
+    ✔️ Blocking
+
+➤ 3PC (Three-Phase Commit)
+    ✔️ Safer than 2PC
+    ✔️ Rarely used
+
+➤ Paxos / Raft (added knowledge)
+    ✔️ Used in modern systems
+    ✔️ Leader-based consensus
+
+
+🔁 MVCC (Multi-Version Concurrency Control)
+🔄 Used By: PostgreSQL
+
+🔄 Idea
+➤ Maintain multiple versions of same data
+
+🔄 Benefits
+➤ Non-blocking reads
+➤ Supports different isolation levels
+
+🔄 Trade-off
+➤ More memory
+➤ Cleanup required (vacuum)
+
+
+🔁 Saga Pattern (Long Transactions)
+➤ Transaction broken into smaller steps
+➤ Each step has a compensating action
+
+🔄 Use Case 1: Food Ordering
+➤ Lock money
+➤ Confirm restaurant
+➤ Commit or rollback
+
+🔄 Use Case 2: Phone Calls
+➤ Lock funds per minute
+➤ Final charge at end
+
+
+🔁 Why Use Master–Slave Architecture?
+1️⃣ Backup & Fault Tolerance
+➤ Slave acts as hot standby
+
+2️⃣ Read Scalability
+➤ Reads served from slaves
+➤ Writes remain on master
+
+3️⃣ Analytics Isolation
+➤ Heavy queries run on slaves
+
+4️⃣ Eventual Consistency Support
+➤ Acceptable for feeds, comments
+
+
+🔁 Scaling Further: Sharding + Replication
+
+🔄 Sharding
+➤ Partition data by key range
+✅ Example:
+    ✔️ A → users 0–100
+    ✔️ B → users 100–200
+    ✔️ C → users 200–300
+
+🔄 Benefits
+➤ Reduced blast radius
+➤ Horizontal scaling
+
+🔄 High Availability
+➤ Each shard has a slave
+➤ Slave promoted on failure
+
+
+🔁 Combined Architecture
+➤ Sharding → scale
+➤ Replication → availability
+➤ Consensus → correctness
+
+➤ Master–Slave architecture improves availability and read scalability by separating write and read responsibilities.
+➤ Split brain occurs when multiple masters accept writes during network partition.
+➤ Consensus protocols ensure a single source of truth in distributed systems.
+
+
+🔁 Real-World Examples (Added Knowledge)
+➤ MySQL Replication
+➤ PostgreSQL Streaming Replication
+➤ Redis Master–Replica
+➤ MongoDB Replica Sets
+
+
+🔁 Mental Model
+Master–Slave = Write consistency + Read scalability + Operational simplicity
