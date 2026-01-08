@@ -1,0 +1,114 @@
+The Outbox Pattern is a reliability pattern used in distributed systems / microservices to guarantee consistency between database changes and event/message publishing.
+
+Core problem it solves:
+👉 How do we make sure that when data is saved to a database, the corresponding event/message is never lost and never duplicated, even if failures happen?
+
+❌ The Problem (Without Outbox Pattern)
+Imagine this flow in a microservice:
+1️⃣ Save Order to DB
+2️⃣ Publish OrderCreated event to Kafka/RabbitMQ
+
+
+❓ What can go wrong?
+➤ DB save succeeds ✅
+➤ Message publish fails ❌ (network crash, broker down)
+
+➡️ System state becomes inconsistent
+➤ Order exists in DB
+➤ Other services never know about it
+
+✅ The Solution: Outbox Pattern
+Write business data and events in the same database transaction.
+Instead of directly publishing events:
+
+✔️ Save data
+✔️ Save event in "Outbox" table
+(commit transaction)
+👉 Later, a background process publishes the events reliably.
+
+
+🧠 How Outbox Pattern Works (Step-by-Step)
+1️⃣ Transactional Write
+In a single DB transaction:
+  ✔️ Save business entity
+  ✔️ Save event to outbox table
+BEGIN TRANSACTION
+  INSERT INTO orders (...)
+  INSERT INTO outbox (event_type, payload, status)
+COMMIT
+✔️ Either both succeed
+✔️ Or both fail
+
+
+2️⃣ Outbox Processor (Publisher)
+A background worker / scheduler:
+  ✔️ Reads unpublished records from outbox
+  ✔️ Publishes them to message broker
+  ✔️ Marks them as PUBLISHED
+
+
+3️⃣ Consumers Handle Events
+Other services consume the message and act accordingly.
+
+
+✅ Example Outbox Table
+outbox
+--------------------------------
+id
+event_type
+payload (JSON)
+status (NEW, PUBLISHED)
+created_at
+
+
+🔁 Architecture Diagram (Textual)
+Service
+ ├── Database
+ │     ├── Orders
+ │     └── Outbox
+ │
+ └── Outbox Publisher
+        └── Kafka / RabbitMQ
+                └── Other Services
+
+
+💡 Why Outbox Pattern is Important
+✅ Guarantees
+  ✔️ Atomicity (DB + Event together)
+  ✔️ No message loss
+  ✔️ Eventually consistent
+  ✔️ Failure tolerant
+
+
+⚠️ Challenges / Trade-offs
+| Issue             | Explanation                          |
+| ----------------- | ------------------------------------ |
+| Event duplication | Consumers must be **idempotent**     |
+| Extra table       | Slight DB overhead                   |
+| Event delay       | Events are **eventual**, not instant |
+| Cleanup           | Old outbox rows need cleanup         |
+
+
+🆚 Outbox vs Two-Phase Commit (2PC)
+| Feature                    | Outbox    | 2PC   |
+| -------------------------- | --------- | ----- |
+| Complexity                 | Low       | High  |
+| Scalability                | High      | Poor  |
+| Failure handling           | Excellent | Risky |
+| Preferred in microservices | ✅ Yes     | ❌ No  |
+
+
+🧩 Common Variations
+🌟 Transactional Outbox
+  ✔️ Poll DB → Publish events
+  ✔️ Most common
+
+🌟 CDC (Change Data Capture)
+  ✔️ Use tools like Debezium
+  ✔️ Reads DB logs instead of polling
+
+🧠 Real-World Usage
+  ✔️ E-commerce (Order → Payment → Shipping)
+  ✔️ Banking systems
+  ✔️ Event-driven microservices
+  ✔️ Saga pattern implementations

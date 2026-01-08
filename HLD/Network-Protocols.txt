@@ -1,0 +1,83 @@
+Network protocols define rules and standards that allow two devices/systems to communicate reliably over a network.
+
+📦 OSI Model — 7 Layers
+Layer Number	Layer Name
+7️⃣	Application Layer
+6️⃣	Presentation Layer
+5️⃣	Session Layer
+4️⃣	Transport Layer
+3️⃣	Network Layer
+2️⃣	Data Link Layer
+1️⃣	Physical Layer
+
+✔ Main focus (for application development):
+Application Layer & Transport Layer
+🏛 Application Layer
+• Responsible for direct interaction with the user and providing services like web browsing, email, file transfer.
+
+🔹 Application Layer Protocol Types
+1️⃣ Client–Server Protocols
+
+Used where a central server communicates with clients.
+
+✅ Examples:
+HTTP – Web browsing
+FTP – File transfer
+SMTP – Email sending
+WebSockets – Full-duplex communication (real-time apps)
+
+2️⃣ Peer-to-Peer (P2P) Protocols
+Nodes communicate directly without a central server.
+
+✅ Examples:
+WebRTC – Real-time audio/video, direct browser communication
+XMPP – Chat and instant messaging protocol
+
+
+🚀 Transport Layer
+Provides end-to-end communication including:
+    ✔️ Reliability
+    ✔️ Flow control
+    ✔️ Error control
+
+Main Protocols:
+    ✔️ TCP (Transmission Control Protocol)
+    ✔️ Reliable, connection-oriented
+    ✔️ Used in HTTP, FTP, SMTP
+    ✔️ UDP (User Datagram Protocol)
+    ✔️ Fast, connectionless, no reliability
+    ✔️ Used in video streaming, VoIP, gaming
+
+⚠ Correction:
+Transport layer and Network layer are NOT the same.
+They are different OSI layers:
+    ✔️ Transport layer = TCP/UDP    
+    ✔️ Network layer = IP, ICMP
+
+
+🛰 Network Layer
+Responsible for routing packets across networks.
+Main Protocols:
+    ✔️ IP (Internet Protocol) – addressing & routing
+    ✔️ ICMP – error reporting (e.g., ping)
+    ✔️ DNS – domain → IP conversion
+    ✔️ Routing protocols (OSPF, BGP etc.)
+
+📝 List of Popular Network Protocols (Categorized)
+🔹 Application Layer
+    ✔️ HTTP
+    ✔️ FTP
+    ✔️ SMTP
+    ✔️ DNS
+    ✔️ WebSockets
+    ✔️ XMPP
+    ✔️ WebRTC
+    ✔️ SSH
+
+🔹 Transport Layer
+    ✔️ TCP
+    ✔️ UDP
+
+🔹 Network Layer
+    ✔️ IP
+    ✔️ ICMP
