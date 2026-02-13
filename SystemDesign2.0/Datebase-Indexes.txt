@@ -1,0 +1,2456 @@
+=================
+DATABASE INDEXES
+=================
+
+TABLE OF CONTENTS
+================================================================================
+1. Fundamentals of Database Indexes
+2. How Indexes Work Internally
+3. Types of Indexes
+4. Index Data Structures
+5. Index Design Strategies
+6. Performance Implications
+7. Trade-offs and Considerations
+8. Advanced Indexing Concepts
+9. Distributed Systems and Indexes
+10. Real-World System Design Scenarios
+11. Best Practices and Anti-patterns
+
+
+================================================================================
+1. FUNDAMENTALS OF DATABASE INDEXES
+================================================================================
+
+1.1 What is a Database Index?
+-----------------------------
+A database index is a data structure that improves the speed of data retrieval operations on a database table at the cost of additional writes and storage space.
+
+Think of it like a book's index:
+- Without an index: You read every page to find a topic (full table scan)
+- With an index: You look up the topic and jump to the right page (indexed lookup)
+
+
+1.2 Why Do We Need Indexes?
+---------------------------
+PRIMARY PROBLEMS SOLVED:
+- Slow queries on large datasets
+- Full table scans consuming excessive I/O
+- Poor user experience due to latency
+- Inefficient use of system resources
+
+WITHOUT INDEX:
+Query: SELECT * FROM users WHERE email = 'john@example.com';
+Process: Database scans EVERY row sequentially
+Time Complexity: O(n) where n = number of rows
+
+WITH INDEX:
+Process: Database uses index to jump directly to matching rows
+Time Complexity: O(log n) for B-Tree indexes
+
+
+1.3 Basic Terminology
+---------------------
+- CARDINALITY: Number of unique values in a column
+  - High cardinality: email, user_id (good for indexing)
+  - Low cardinality: boolean, gender (poor for indexing)
+
+- SELECTIVITY: Ratio of unique values to total rows
+  - High selectivity = good index candidate
+  - Formula: SELECTIVITY = DISTINCT(column) / TOTAL_ROWS
+
+- CLUSTERED INDEX: Determines physical order of data in table
+  - Only ONE per table
+  - Usually the primary key
+
+- NON-CLUSTERED INDEX: Separate structure pointing to data
+  - Multiple allowed per table
+  - Contains pointers to actual data
+
+
+================================================================================
+2. HOW INDEXES WORK INTERNALLY
+================================================================================
+
+2.1 Index Structure Overview
+----------------------------
+An index typically consists of:
+1. Index Key: The column(s) you're indexing
+2. Pointer/Reference: Location of the actual row data
+3. Optional: Additional columns (covered index)
+
+Example Index Entry:
+[Index Key: "alice@example.com"] -> [Row Pointer: Page 42, Slot 7]
+
+2.2 Index Lookup Process
+------------------------
+STEP-BY-STEP EXECUTION:
+
+1. QUERY PARSING
+   Query: SELECT * FROM users WHERE email = 'bob@example.com';
+   
+2. QUERY OPTIMIZER DECISION
+   - Checks available indexes
+   - Estimates cost of full scan vs index scan
+   - Chooses optimal execution plan
+
+3. INDEX TRAVERSAL
+   - Navigate index structure (e.g., B-Tree)
+   - Find matching key(s)
+   
+4. DATA RETRIEVAL
+   - Use pointer to fetch actual row
+   - Return results
+
+
+2.3 Read vs Write Impact
+------------------------
+READS (Improved):
+- Query time: O(log n) instead of O(n)
+- Reduced disk I/O
+- Better cache utilization
+
+WRITES (Degraded):
+- INSERT: Must update table + all indexes
+- UPDATE: If indexed column changes, index must be updated
+- DELETE: Must remove from table + all indexes
+
+Write Overhead Example:
+Table with 5 indexes:
+- 1 INSERT operation becomes 6 writes (1 table + 5 indexes)
+- Each index update requires tree rebalancing
+
+================================================================================
+3. TYPES OF INDEXES
+================================================================================
+
+3.1 Primary Index (Clustered)
+-----------------------------
+CHARACTERISTICS:
+- Defines physical row order
+- One per table
+- Usually on primary key
+- Data pages are leaf nodes
+
+EXAMPLE:
+CREATE TABLE users (
+    id INT PRIMARY KEY,  -- Automatically creates clustered index
+    name VARCHAR(100)
+);
+
+WHEN TO USE:
+- Range queries on sequential data
+- Queries that benefit from physical ordering
+- Primary key lookups
+
+3.2 Secondary Index (Non-Clustered)
+-----------------------------------
+CHARACTERISTICS:
+- Separate data structure
+- Multiple allowed per table
+- Contains key + row pointer
+- Requires additional lookup to get full row
+
+EXAMPLE:
+CREATE INDEX idx_email ON users(email);
+
+STORAGE STRUCTURE:
+Index Leaf Nodes: [email] -> [pointer to clustered index key]
+Then: [clustered index key] -> [actual row data]
+
+3.3 Unique Index
+----------------
+Enforces uniqueness constraint while providing index benefits.
+
+EXAMPLE:
+CREATE UNIQUE INDEX idx_unique_email ON users(email);
+
+SYSTEM DESIGN IMPLICATION:
+- Prevents duplicate entries
+- Slight write overhead for uniqueness check
+- Same read performance as non-unique index
+
+3.4 Composite (Compound) Index
+------------------------------
+Index on multiple columns.
+
+EXAMPLE:
+CREATE INDEX idx_name_age ON users(last_name, first_name, age);
+
+KEY CONCEPT - LEFT-PREFIX RULE:
+Index can be used for queries on:
+✓ (last_name)
+✓ (last_name, first_name)
+✓ (last_name, first_name, age)
+✗ (first_name) -- Cannot use index
+✗ (age) -- Cannot use index
+✗ (first_name, age) -- Cannot use index
+
+COLUMN ORDER MATTERS:
+Rule: Most selective column first, or column used most in WHERE clauses
+
+Example Decision:
+Queries:
+- 90% filter by country
+- 80% filter by country + city
+- 10% filter by city alone
+
+Best Index: (country, city)
+Why: Matches most common query pattern
+
+3.5 Covering Index (Include Columns)
+------------------------------------
+Index contains all columns needed by query (no table lookup required).
+
+EXAMPLE:
+CREATE INDEX idx_covering ON users(email) INCLUDE (name, created_at);
+
+Query: SELECT name, created_at FROM users WHERE email = 'x@y.com';
+Result: Entire query satisfied from index alone (INDEX ONLY SCAN)
+
+BENEFITS:
+- No additional I/O to fetch row data
+- Faster query execution
+- Reduced contention on main table
+
+COST:
+- Larger index size
+- Slower writes (more data to maintain)
+
+3.6 Partial Index (Filtered Index)
+----------------------------------
+Index on subset of rows matching a condition.
+
+EXAMPLE:
+CREATE INDEX idx_active_users ON users(email) WHERE status = 'active';
+
+USE CASES:
+- When you frequently query a specific subset
+- Reduces index size
+- Faster maintenance
+
+SYSTEM DESIGN SCENARIO:
+E-commerce platform:
+- 95% of orders are 'completed'
+- 5% are 'pending' or 'processing'
+- Frequent queries for non-completed orders
+
+Solution:
+CREATE INDEX idx_pending_orders 
+ON orders(created_at) 
+WHERE status != 'completed';
+
+3.7 Full-Text Index
+-------------------
+Specialized for text search queries.
+
+EXAMPLE:
+CREATE FULLTEXT INDEX idx_content ON articles(title, body);
+
+Query: SELECT * FROM articles WHERE MATCH(title, body) AGAINST ('database');
+
+CHARACTERISTICS:
+- Tokenizes text into words
+- Supports relevance ranking
+- Handles natural language queries
+- Much larger than regular indexes
+
+SYSTEM DESIGN CHOICE:
+Small to medium text search: Full-text index
+Large-scale search: Consider Elasticsearch, Solr
+
+3.8 Spatial Index
+-----------------
+For geographic data and spatial queries.
+
+EXAMPLE:
+CREATE SPATIAL INDEX idx_location ON stores(coordinates);
+
+Query: Find all stores within 5km of a point
+SELECT * FROM stores 
+WHERE ST_Distance_Sphere(coordinates, POINT(lat, lng)) < 5000;
+
+USE CASES:
+- Location-based services
+- Geofencing
+- Proximity searches
+
+UNDERLYING STRUCTURE:
+Usually R-Tree or variations (R*-Tree, R+-Tree)
+
+3.9 Hash Index
+--------------
+Uses hash table for exact match lookups.
+
+CHARACTERISTICS:
+- O(1) average case for exact matches
+- Cannot support range queries
+- Cannot support ORDER BY using index
+- Some databases support, others don't
+
+EXAMPLE (MySQL MEMORY tables):
+CREATE TABLE cache (
+    key VARCHAR(255),
+    value TEXT,
+    INDEX USING HASH (key)
+);
+
+WHEN TO USE:
+- Exact match lookups only
+- No range queries needed
+- In-memory tables
+- Cache implementations
+
+3.10 Bitmap Index
+-----------------
+Efficient for low-cardinality columns with complex queries.
+
+EXAMPLE USE CASE:
+Column: gender (M/F/Other)
+Bitmap representation:
+Row 1: M  -> 100
+Row 2: F  -> 010
+Row 3: M  -> 100
+Row 4: Other -> 001
+
+ADVANTAGES:
+- Extremely space-efficient for low cardinality
+- Fast bitwise operations for complex AND/OR queries
+- Good for data warehousing
+
+DISADVANTAGES:
+- Poor for high-cardinality columns
+- Write-intensive workloads suffer
+- Not all databases support (common in Oracle, PostgreSQL)
+
+SYSTEM DESIGN SCENARIO:
+Analytics database with dimensions:
+- country (200 distinct values)
+- product_category (50 distinct values)
+- subscription_type (5 distinct values)
+
+Query: SELECT * FROM sales 
+WHERE country = 'USA' AND category = 'Electronics' AND type = 'Premium';
+
+Result: Fast bitwise AND operation on three bitmaps
+
+================================================================================
+4. INDEX DATA STRUCTURES
+================================================================================
+
+4.1 B-Tree (Balanced Tree)
+--------------------------
+Most common index structure in relational databases.
+
+STRUCTURE:
+                    [50]
+                   /    \
+              [25]        [75]
+             /    \      /    \
+        [10][40] [60]  [90]
+
+CHARACTERISTICS:
+- Self-balancing tree
+- All leaf nodes at same depth
+- Order: O(log n) for search, insert, delete
+- Nodes contain multiple keys
+- Good for range queries and equality
+
+PARAMETERS:
+- Order (m): Maximum children per node
+- Typical order: 100-200 for database indexes
+- Height: Kept minimal through balancing
+
+WHY B-TREE FOR DATABASES:
+1. Minimizes disk I/O (wide nodes = fewer levels)
+2. Sequential access friendly (leaf pages linked)
+3. Range query efficient
+4. Maintains balance automatically
+
+EXAMPLE CALCULATION:
+Database with 1 million rows
+B-Tree order: 100
+Height: log₁₀₀(1,000,000) ≈ 3
+Result: Maximum 3 disk reads to find any record
+
+4.2 B+Tree
+----------
+Variation of B-Tree, most widely used in practice.
+
+DIFFERENCES FROM B-TREE:
+1. Data only in leaf nodes
+2. Internal nodes only store keys (more keys per node)
+3. Leaf nodes linked as linked list
+4. Better for range scans
+
+STRUCTURE:
+              [50|75]          <- Internal (keys only)
+             /   |   \
+         [25]  [50]  [75]      <- Internal
+         / \    / \    / \
+     [10][25][50][60][75][90]  <- Leaf (data) - LINKED
+
+ADVANTAGES:
+- More efficient range queries (traverse linked leaves)
+- Higher fanout (more keys per internal node)
+- Better cache performance
+- Sequential scan friendly
+
+REAL DATABASE USAGE:
+- MySQL InnoDB: B+Tree
+- PostgreSQL: B+Tree
+- SQL Server: B+Tree
+- Oracle: B+Tree variation
+
+4.3 Hash Tables
+---------------
+Direct mapping using hash function.
+
+STRUCTURE:
+Hash Function: h(key) -> bucket
+Buckets: 0, 1, 2, ..., n-1
+
+EXAMPLE:
+h("alice@example.com") -> bucket 42
+h("bob@example.com") -> bucket 7
+
+COLLISION HANDLING:
+1. Chaining: Linked list in each bucket
+2. Open addressing: Probe for next empty slot
+
+LIMITATIONS:
+✗ No range queries
+✗ No ORDER BY optimization
+✗ No partial key matches
+✓ O(1) exact match (average case)
+
+WHEN TO USE:
+- In-memory databases (Redis)
+- Cache layers
+- Exact match only requirements
+- Hash partitioning strategies
+
+4.4 LSM Tree (Log-Structured Merge Tree)
+-----------------------------------------
+Optimized for write-heavy workloads.
+
+STRUCTURE:
+1. MemTable (in-memory, sorted)
+2. Immutable MemTable
+3. SSTable (Sorted String Table) on disk
+4. Multiple levels of SSTables
+
+WRITE PROCESS:
+Write -> MemTable (fast) -> Flush to SSTable when full -> Compact levels
+
+READ PROCESS:
+Check MemTable -> Check recent SSTables -> Check older levels
+(May require multiple reads)
+
+CHARACTERISTICS:
+- Sequential writes (very fast)
+- Reads may be slower (bloom filters help)
+- Periodic compaction needed
+- Write amplification during compaction
+
+USED IN:
+- Apache Cassandra
+- RocksDB
+- LevelDB
+- HBase
+- ScyllaDB
+
+SYSTEM DESIGN TRADE-OFF:
+Write-heavy system (logs, time-series): LSM-Tree
+Read-heavy system (user queries): B+Tree
+
+4.5 R-Tree (Spatial)
+--------------------
+For multidimensional data (geographic, geometric).
+
+STRUCTURE:
+Hierarchical bounding boxes (MBR - Minimum Bounding Rectangle)
+
+EXAMPLE (2D):
+                [MBR: entire city]
+               /                  \
+    [MBR: north side]       [MBR: south side]
+      /          \              /          \
+  [store1]   [store2]      [store3]     [store4]
+
+QUERIES SUPPORTED:
+- Point queries: Find location
+- Range queries: Find all within area
+- Nearest neighbor: Find closest points
+- Intersection: Find overlapping regions
+
+USE CASES:
+- GIS systems
+- CAD applications
+- Location-based services
+- Game development
+
+4.6 Inverted Index
+------------------
+Maps content to locations (opposite of traditional index).
+
+STRUCTURE:
+Word -> [Document IDs containing word]
+
+EXAMPLE:
+"database": [doc1, doc5, doc12, doc45]
+"index": [doc1, doc3, doc5, doc23]
+"system": [doc5, doc12, doc23]
+
+QUERY: "database index"
+Process: 
+- Get docs for "database": [1,5,12,45]
+- Get docs for "index": [1,3,5,23]
+- Intersection: [1,5]
+- Rank by relevance
+
+USED IN:
+- Search engines
+- Full-text search
+- Elasticsearch
+- Apache Lucene
+
+ADDITIONAL FEATURES:
+- Term frequency (TF)
+- Inverse document frequency (IDF)
+- Positional information
+- Stemming and normalization
+
+================================================================================
+5. INDEX DESIGN STRATEGIES
+================================================================================
+
+5.1 Identifying Columns to Index
+---------------------------------
+
+HIGH-VALUE CANDIDATES:
+1. Primary keys (automatic)
+2. Foreign keys (join operations)
+3. Columns in WHERE clauses
+4. Columns in ORDER BY
+5. Columns in GROUP BY
+6. Columns in JOIN conditions
+
+LOW-VALUE CANDIDATES:
+1. Low cardinality columns (gender, boolean)
+2. Frequently updated columns
+3. Very large text columns
+4. Columns rarely used in queries
+
+ANALYSIS PROCESS:
+Step 1: Analyze query patterns (use query logs)
+Step 2: Identify slow queries (EXPLAIN ANALYZE)
+Step 3: Calculate selectivity
+Step 4: Consider write frequency
+Step 5: Measure index size impact
+
+5.2 Composite Index Design
+--------------------------
+
+ORDERING PRINCIPLES:
+
+1. EQUALITY FIRST, RANGE LAST
+   Good: (status, created_at) for WHERE status = 'active' AND created_at > X
+   Bad:  (created_at, status) -- range column first
+
+2. MOST SELECTIVE FIRST
+   If selectivity(email) = 0.99 and selectivity(country) = 0.01
+   Better: (email, country)
+
+3. MATCH QUERY PATTERNS
+   Frequent query: WHERE country = X AND city = Y
+   Index: (country, city)
+
+EXAMPLE ANALYSIS:
+Query: SELECT * FROM orders 
+       WHERE customer_id = 123 
+       AND status = 'pending' 
+       AND created_at > '2024-01-01'
+
+Options:
+A) (customer_id, status, created_at)
+B) (status, customer_id, created_at)
+C) (created_at, customer_id, status)
+
+Analysis:
+- customer_id: High selectivity (unique per customer)
+- status: Low selectivity (5 values)
+- created_at: Range query
+
+Best: Option A (customer_id, status, created_at)
+Reason: Equality (high selectivity) -> Equality (low) -> Range
+
+5.3 Index Prefix Length (String Columns)
+-----------------------------------------
+
+For string columns, you can index a prefix instead of entire value.
+
+EXAMPLE:
+Full index: CREATE INDEX idx_email ON users(email);
+Prefix:     CREATE INDEX idx_email ON users(email(10));
+
+TRADE-OFFS:
+Smaller prefix:
++ Smaller index size
++ Faster maintenance
+- Lower selectivity
+- More false positives
+
+Larger prefix:
++ Higher selectivity
++ Fewer false positives
+- Larger index
+- Slower maintenance
+
+FINDING OPTIMAL PREFIX:
+SELECT 
+    COUNT(DISTINCT LEFT(email, 5)) / COUNT(*) as prefix_5,
+    COUNT(DISTINCT LEFT(email, 10)) / COUNT(*) as prefix_10,
+    COUNT(DISTINCT LEFT(email, 15)) / COUNT(*) as prefix_15,
+    COUNT(DISTINCT email) / COUNT(*) as full
+FROM users;
+
+Choose prefix where selectivity is close to full column selectivity.
+
+5.4 Redundant and Duplicate Indexes
+-----------------------------------
+
+REDUNDANT INDEXES:
+Index A makes Index B redundant if A can satisfy all queries B can.
+
+EXAMPLES:
+Index 1: (a, b, c)
+Index 2: (a, b)      <- REDUNDANT (covered by Index 1)
+Index 3: (a)         <- REDUNDANT (covered by Index 1)
+
+Index 1: (a, b)
+Index 2: (b, a)      <- NOT redundant (different column order)
+
+FINDING REDUNDANT INDEXES:
+-- PostgreSQL
+SELECT * FROM pg_stat_user_indexes WHERE idx_scan = 0;
+
+-- MySQL
+SELECT * FROM sys.schema_unused_indexes;
+
+SYSTEM DESIGN IMPACT:
+- Each redundant index wastes storage
+- Slows down write operations
+- No query benefit
+- Regular audits needed
+
+5.5 Index Consolidation Strategies
+----------------------------------
+
+SCENARIO:
+You have queries:
+Q1: WHERE a = X
+Q2: WHERE a = X AND b = Y
+Q3: WHERE a = X AND b = Y AND c = Z
+
+OPTION 1: Three separate indexes
+- Index on (a)
+- Index on (a,b)
+- Index on (a,b,c)
+
+OPTION 2: One consolidated index
+- Index on (a,b,c) only
+
+TRADE-OFF:
+Option 1: Smaller individual indexes but more maintenance
+Option 2: One index serves all, but larger and might be overkill
+
+BEST PRACTICE:
+Start with consolidated index, split only if:
+- Index size becomes problematic
+- Write performance suffers significantly
+- Query patterns are truly distinct
+
+================================================================================
+6. PERFORMANCE IMPLICATIONS
+================================================================================
+
+6.1 Index Impact on Query Performance
+-------------------------------------
+
+IMPROVEMENT METRICS:
+
+WITHOUT INDEX:
+Query: SELECT * FROM users WHERE email = 'test@example.com';
+Execution: Full table scan
+Rows examined: 10,000,000
+Time: 5000ms
+I/O operations: 5000 page reads
+
+WITH INDEX:
+Query: Same
+Execution: Index seek
+Rows examined: 1
+Time: 2ms
+I/O operations: 4 page reads (3 index levels + 1 data page)
+
+SPEEDUP: 2500x
+
+RANGE QUERY EXAMPLE:
+Query: SELECT * FROM orders WHERE created_at BETWEEN '2024-01-01' AND '2024-01-31';
+
+Without index: O(n) scan all rows
+With index: O(log n) to find start + O(k) to scan k matching rows
+
+6.2 Index Impact on Write Performance
+-------------------------------------
+
+WRITE OPERATION BREAKDOWN:
+
+INSERT without indexes:
+- Write row to table: 1 I/O operation
+- Total: 1 write
+
+INSERT with 5 indexes:
+- Write row to table: 1 I/O
+- Update index 1: 2-3 I/O (find position, insert, possibly rebalance)
+- Update index 2: 2-3 I/O
+- Update index 3: 2-3 I/O
+- Update index 4: 2-3 I/O
+- Update index 5: 2-3 I/O
+- Total: 11-16 writes
+
+OVERHEAD: 11x-16x slower
+
+UPDATE SCENARIOS:
+
+Case 1: Update non-indexed column
+Cost: 1 write (same as no index)
+
+Case 2: Update indexed column
+Cost: 1 write + index update cost
+Process: Delete old index entry + Insert new entry
+
+Case 3: Update multiple indexed columns
+Cost: Multiplies quickly
+
+DELETE OPERATIONS:
+Must remove from all indexes
+Cost: Similar to INSERT
+
+6.3 Storage Overhead
+--------------------
+
+INDEX SIZE CALCULATION:
+
+Example table:
+- 10 million rows
+- Primary key: 4 bytes
+- Indexed email: 50 bytes average
+
+B+Tree index storage:
+- Leaf nodes: 10M * (50 + 4) bytes = 540 MB
+- Internal nodes: ~10% of leaf = 54 MB
+- Total index size: ~600 MB
+
+WITH 10 INDEXES:
+Total index storage: 6 GB
+Original table: 2 GB
+Total storage: 8 GB (4x increase)
+
+COST IMPLICATIONS:
+- More expensive storage systems needed
+- Slower backups
+- Longer recovery time
+- Higher cloud storage costs
+
+6.4 Memory and Cache Impact
+---------------------------
+
+INDEX CACHE BEHAVIOR:
+
+Hot indexes (frequently used):
+- Stay in buffer pool/cache
+- Fast access (memory speed)
+- Effective memory usage
+
+Cold indexes (rarely used):
+- Evicted from cache
+- Waste buffer pool space
+- Cause cache thrashing
+
+BUFFER POOL PRESSURE:
+Limited memory: 16 GB buffer pool
+Indexes: 20 GB total
+Result: Constant cache eviction, poor performance
+
+OPTIMIZATION:
+Monitor index usage:
+SELECT index_name, idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes;
+
+Remove unused indexes to free cache space.
+
+6.5 Lock Contention
+-------------------
+
+WRITE OPERATIONS LOCKING:
+
+Scenario: High-concurrency INSERT operations
+
+Without many indexes:
+- Row-level lock on table
+- Minimal contention
+- High throughput
+
+With many indexes:
+- Row-level lock on table
+- Index page locks (all indexes)
+- If indexes on hot values (e.g., auto-increment): hotspot contention
+- Reduced throughput
+
+DEADLOCK SCENARIOS:
+Transaction 1: UPDATE users SET email='a' WHERE id=1
+Transaction 2: UPDATE users SET email='b' WHERE id=2
+
+If both update email (indexed column):
+- Each needs to modify email index
+- Can cause deadlock if not careful
+
+MITIGATION:
+- Batch updates when possible
+- Consistent lock ordering
+- Shorter transactions
+- Consider partition strategies
+
+6.6 Query Optimizer Decisions
+-----------------------------
+
+The optimizer chooses whether to use an index based on:
+
+1. SELECTIVITY
+   High selectivity -> Use index
+   Low selectivity -> Full scan may be faster
+
+2. TABLE SIZE
+   Small table -> Full scan often faster (avoid index overhead)
+   Large table -> Index usually wins
+
+3. QUERY RESULT SIZE
+   Returning 1% of rows -> Use index
+   Returning 50% of rows -> Full scan faster (too many random I/Os)
+
+STATISTICS IMPORTANCE:
+Optimizer relies on table statistics:
+- Row count
+- Distinct values
+- Data distribution
+- Index cardinality
+
+Outdated statistics -> Wrong decisions
+
+FORCING INDEX (not recommended):
+SELECT * FROM users USE INDEX (idx_email) WHERE email = 'test@example.com';
+
+Better: Update statistics and let optimizer decide
+
+================================================================================
+7. TRADE-OFFS AND CONSIDERATIONS
+================================================================================
+
+7.1 Read-Heavy vs Write-Heavy Workloads
+---------------------------------------
+
+READ-HEAVY SYSTEM:
+Examples: Analytics dashboards, reporting systems, data warehouses
+
+Strategy:
+✓ Generous with indexes
+✓ Covering indexes for common queries
+✓ Composite indexes for complex filters
+✓ Materialized views
+✓ Denormalization acceptable
+
+Trade-off acceptance:
+- Higher storage cost
+- Slower bulk loads (can be scheduled)
+- Worth it for query performance
+
+WRITE-HEAVY SYSTEM:
+Examples: Logging systems, IoT data ingestion, high-frequency trading
+
+Strategy:
+✗ Minimal indexes (only essential)
+✗ Avoid covering indexes
+✓ Batch inserts when possible
+✓ Consider append-only patterns
+✓ Partition tables to distribute load
+
+Trade-off acceptance:
+- Some queries may be slower
+- Worth it for write throughput
+
+MIXED WORKLOAD:
+Most real systems
+
+Strategy:
+- Index based on SLA requirements
+- Monitor and adjust
+- Use read replicas (different index strategies)
+- Partition by workload type
+
+7.2 Storage vs Performance
+--------------------------
+
+SCENARIO ANALYSIS:
+
+System: E-commerce platform
+Table: products (5 million rows)
+Queries: 1000 QPS
+Storage cost: $0.10/GB/month
+
+Option 1: Minimal indexes (3 indexes)
+- Storage: 5 GB
+- Query avg latency: 50ms
+- Cost: $0.50/month
+
+Option 2: Comprehensive indexes (15 indexes)
+- Storage: 25 GB
+- Query avg latency: 5ms
+- Cost: $2.50/month
+
+ANALYSIS:
+Extra cost: $2/month
+Performance gain: 10x faster queries
+Better user experience: Priceless
+Decision: Option 2 is obvious choice
+
+WHEN STORAGE MATTERS:
+- Massive scale (TB/PB of data)
+- Tight budget constraints
+- Infrequently accessed data
+- Archive/cold storage
+
+WHEN PERFORMANCE MATTERS:
+- User-facing queries
+- Real-time systems
+- Competitive advantage
+- Revenue-generating features
+
+7.3 Maintenance Overhead
+------------------------
+
+ONGOING MAINTENANCE TASKS:
+
+1. INDEX REBUILDING
+   Why: Fragmentation over time
+   Frequency: Weekly/Monthly for active indexes
+   Downtime: Can be online in modern databases
+   
+   PostgreSQL: REINDEX INDEX CONCURRENTLY idx_name;
+   MySQL: OPTIMIZE TABLE table_name;
+
+2. STATISTICS UPDATE
+   Why: Optimizer needs current data distribution
+   Frequency: After significant data changes
+   
+   PostgreSQL: ANALYZE table_name;
+   MySQL: ANALYZE TABLE table_name;
+
+3. MONITORING
+   - Index usage statistics
+   - Index size growth
+   - Query performance trends
+   - Lock wait times
+
+4. CLEANUP
+   - Remove unused indexes
+   - Consolidate redundant indexes
+   - Archive old data
+
+TIME INVESTMENT:
+Small system: 1-2 hours/month
+Medium system: 1 day/week
+Large system: Dedicated DBA team
+
+AUTOMATION OPPORTUNITIES:
+- Auto-analyze (PostgreSQL autovacuum)
+- Automated monitoring alerts
+- Index suggestion tools
+- Performance regression detection
+
+7.4 Consistency and Locking
+---------------------------
+
+INDEX MAINTENANCE AND TRANSACTIONS:
+
+ACID Guarantees:
+- Indexes must remain consistent with table data
+- Updates must be atomic (table + all indexes)
+- Isolation levels affect index visibility
+
+ONLINE INDEX CREATION:
+Old approach: Lock table during creation (downtime)
+Modern approach: Online index build
+
+PostgreSQL:
+CREATE INDEX CONCURRENTLY idx_name ON table(column);
+
+Process:
+1. Create index structure
+2. Scan table and populate
+3. Wait for transactions
+4. Mark index as valid
+
+Trade-off: Takes longer but no downtime
+
+LOCKING ISSUES:
+
+Scenario: Foreign key without index
+Table: orders (foreign key: customer_id)
+
+DELETE FROM customers WHERE id = 123;
+
+Without index on orders.customer_id:
+- Database must scan entire orders table
+- Acquires shared lock on orders table
+- Blocks concurrent inserts to orders
+- Performance disaster
+
+Solution: Index all foreign keys
+CREATE INDEX idx_customer_id ON orders(customer_id);
+
+7.5 Distributed Systems Considerations
+--------------------------------------
+
+SHARDING IMPACT:
+
+Scenario: Orders table sharded by customer_id
+
+Query 1: SELECT * FROM orders WHERE customer_id = 123
+Result: Single shard query (fast)
+
+Query 2: SELECT * FROM orders WHERE order_date = '2024-01-01'
+Result: Fan-out to all shards (slow)
+
+INDEX STRATEGY PER SHARD:
+- Each shard has own indexes
+- Shard key determines distribution
+- Index on shard key is critical
+- Other indexes may be less effective
+
+GLOBAL INDEXES:
+Some distributed databases support global indexes
+- Index spans multiple shards
+- More complex maintenance
+- Cross-shard queries faster
+- Writes slower (distributed transaction)
+
+Examples:
+- CockroachDB: Interleaved tables
+- YugabyteDB: Global indexes
+- Vitess: Lookup vindexes
+
+REPLICATION:
+Primary: Full indexes for writes
+Replicas: Can have different indexes for read workloads
+
+Example:
+Primary: Minimal indexes for write performance
+Replica 1: Analytics indexes for reporting
+Replica 2: Different indexes for search functionality
+
+================================================================================
+8. ADVANCED INDEXING CONCEPTS
+================================================================================
+
+8.1 Index-Only Scans (Covering Indexes)
+---------------------------------------
+
+CONCEPT:
+Query satisfied entirely from index without accessing table.
+
+EXAMPLE:
+Index: CREATE INDEX idx_cover ON users(email, name, created_at);
+
+Query: SELECT name, created_at FROM users WHERE email = 'test@example.com';
+
+Execution plan:
+Index Only Scan using idx_cover
+- No table access needed
+- All data in index
+- Maximum efficiency
+
+VISIBILITY MAP (PostgreSQL):
+- Tracks which pages are fully visible
+- Enables true index-only scans
+- Requires VACUUM to maintain
+
+WHEN TO USE:
+- Frequent queries on specific column sets
+- Report queries
+- API endpoints with fixed response structure
+
+COST:
+- Larger index size
+- Slower writes
+- Worth it if query frequency is high
+
+8.2 Expression and Functional Indexes
+-------------------------------------
+
+Index on computed values or function results.
+
+EXAMPLE 1: Case-insensitive search
+CREATE INDEX idx_email_lower ON users(LOWER(email));
+
+Query: SELECT * FROM users WHERE LOWER(email) = 'test@example.com';
+Result: Uses index efficiently
+
+EXAMPLE 2: Extracted date parts
+CREATE INDEX idx_created_month ON orders((EXTRACT(MONTH FROM created_at)));
+
+Query: SELECT * FROM orders WHERE EXTRACT(MONTH FROM created_at) = 12;
+Result: Fast lookup for monthly reports
+
+EXAMPLE 3: JSON field
+CREATE INDEX idx_json_field ON events((metadata->>'user_id'));
+
+Query: SELECT * FROM events WHERE metadata->>'user_id' = '123';
+Result: Index on JSON extraction
+
+CONSIDERATIONS:
+- Must use exact same expression in query
+- Cannot use column value directly
+- Index size same as equivalent column index
+- More complex maintenance
+
+8.3 Partial and Conditional Indexes
+-----------------------------------
+
+Index only subset of rows matching a condition.
+
+ADVANCED EXAMPLE:
+Table: transactions (100 million rows)
+- 95% status = 'completed'
+- 5% status in ('pending', 'failed', 'processing')
+
+Frequent query: Find non-completed transactions
+CREATE INDEX idx_active_txn ON transactions(created_at, status) 
+WHERE status != 'completed';
+
+Benefits:
+- Index size: 5 million rows instead of 100 million (95% smaller)
+- Faster maintenance
+- Better cache utilization
+- Perfect selectivity for target queries
+
+MULTI-TENANCY EXAMPLE:
+CREATE INDEX idx_tenant_data ON data(record_id) WHERE tenant_id = 123;
+
+Separate index per major tenant for isolation.
+
+8.4 Index Merges and Bitmap Index Scans
+---------------------------------------
+
+CONCEPT:
+Combine multiple indexes for a single query.
+
+SCENARIO:
+Table: products
+Index 1: idx_category ON (category)
+Index 2: idx_price ON (price)
+
+Query: SELECT * FROM products WHERE category = 'Electronics' AND price < 1000;
+
+BITMAP INDEX SCAN (PostgreSQL):
+1. Scan idx_category, create bitmap of matching rows
+2. Scan idx_price, create bitmap of matching rows
+3. AND the bitmaps
+4. Fetch rows indicated by final bitmap
+
+ADVANTAGES:
+- Utilizes multiple existing indexes
+- No need for composite index
+- Flexible for various query patterns
+
+DISADVANTAGES:
+- More complex than single index scan
+- May not be as fast as optimal composite index
+- Additional CPU overhead
+
+WHEN IT HAPPENS:
+- Optimizer decides based on cost
+- Multiple WHERE conditions on different columns
+- Each condition selective enough
+
+FORCING BEHAVIOR (for testing):
+SET enable_bitmapscan = off; -- Disable to see difference
+
+8.5 Index Hints and Query Optimization
+--------------------------------------
+
+QUERY PLAN ANALYSIS:
+
+PostgreSQL:
+EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM users WHERE email = 'test@example.com';
+
+Output shows:
+- Chosen index (if any)
+- Estimated vs actual rows
+- Execution time
+- I/O statistics
+
+MySQL:
+EXPLAIN SELECT * FROM users WHERE email = 'test@example.com';
+
+INDEX HINTS (use sparingly):
+MySQL:
+SELECT * FROM users USE INDEX (idx_email) WHERE email = 'test@example.com';
+SELECT * FROM users FORCE INDEX (idx_email) WHERE email = 'test@example.com';
+SELECT * FROM users IGNORE INDEX (idx_email) WHERE email = 'test@example.com';
+
+PostgreSQL (less common, prefer query rewrite):
+Disable specific scan types to influence planner
+
+WHEN TO USE HINTS:
+- Optimizer statistics are wrong (fix statistics instead)
+- Complex query where optimizer struggles
+- Temporary workaround during investigation
+- Known better plan than optimizer chooses
+
+BETTER ALTERNATIVES:
+1. Update statistics: ANALYZE table_name;
+2. Rewrite query
+3. Add missing index
+4. Adjust optimizer parameters
+
+8.6 Bloom Filters
+-----------------
+
+Probabilistic data structure for testing set membership.
+
+CHARACTERISTICS:
+- Space-efficient
+- False positives possible (says "maybe in set")
+- No false negatives (never says "not in set" when it is)
+- Cannot remove elements
+
+USE IN DATABASES:
+
+1. LSM-Tree databases (Cassandra, RocksDB):
+   Each SSTable has bloom filter
+   - Check bloom filter first
+   - Avoid disk read if definitely not present
+   - Huge performance win
+
+2. PostgreSQL Bloom Index:
+   CREATE INDEX bloom_idx ON table USING bloom (col1, col2, col3);
+   
+   Good for:
+   - Multiple column queries (any combination)
+   - Lower precision acceptable
+   - Space savings important
+
+3. Distributed Joins:
+   Build bloom filter of join keys
+   Send to other nodes
+   Filter before sending data
+
+SYSTEM DESIGN USE:
+Cache layer: Check bloom filter before querying database
+- If bloom says "not present": Definitely not in cache
+- If bloom says "maybe present": Check cache
+
+8.7 Columnar Indexes
+--------------------
+
+Store data column-wise instead of row-wise.
+
+TRADITIONAL (ROW-ORIENTED):
+Row 1: [id=1, name="Alice", age=30, city="NYC"]
+Row 2: [id=2, name="Bob", age=25, city="LA"]
+
+COLUMNAR:
+id:   [1, 2, 3, ...]
+name: ["Alice", "Bob", "Charlie", ...]
+age:  [30, 25, 35, ...]
+city: ["NYC", "LA", "SF", ...]
+
+ADVANTAGES:
+- Better compression (similar values together)
+- Read only needed columns
+- SIMD-friendly processing
+- Perfect for analytics
+
+EXAMPLES:
+- Amazon Redshift
+- Google BigQuery
+- Apache Parquet
+- ClickHouse
+
+INDEX STRATEGY:
+- Sort key (like clustered index)
+- Zone maps (min/max per block)
+- Bloom filters
+- Minimal secondary indexes (full scans are fast)
+
+8.8 Adaptive and Learning Indexes
+---------------------------------
+
+EMERGING CONCEPT:
+ML models predict data location instead of traditional index structures.
+
+LEARNED INDEX:
+Train model: f(key) -> approximate position
+Then: Search nearby positions
+
+EXAMPLE:
+Model learns data distribution
+Input: key = 45623
+Output: "Approximately at position 12,450"
+Then: Binary search small range around 12,450
+
+ADVANTAGES (theoretical):
+- Smaller space than B-Tree
+- Faster for specific distributions
+- Adapts to data patterns
+
+CHALLENGES:
+- Doesn't handle insertions well
+- Model training overhead
+- Worse on random data
+- Still mostly research
+
+PRACTICAL REALITY (2025):
+- Not in production databases yet
+- B-Trees still dominate
+- Interesting research direction
+- May see hybrid approaches
+
+================================================================================
+9. DISTRIBUTED SYSTEMS AND INDEXES
+================================================================================
+
+9.1 Sharding and Index Distribution
+-----------------------------------
+
+SHARDING BASICS:
+Partition data across multiple database instances.
+
+SHARD KEY SELECTION:
+Critical for performance and even distribution.
+
+EXAMPLE: Orders table
+
+Option 1: Shard by customer_id
+- Co-locates customer's orders
+- Good: Queries by customer (single shard)
+- Bad: Queries by date range (all shards)
+
+Option 2: Shard by order_date
+- Distributes by time
+- Good: Time-range queries
+- Bad: Customer queries (all shards)
+- Risk: Hot shard (recent data)
+
+Option 3: Hash of order_id
+- Even distribution
+- Good: Load balancing
+- Bad: Most queries scatter
+
+INDEX IMPLICATIONS:
+
+LOCAL INDEXES:
+Each shard maintains its own indexes
+- Easy to maintain
+- Queries limited to indexed columns in single shard
+- Range queries on non-shard-key require scatter-gather
+
+EXAMPLE:
+Sharded by customer_id
+Index on order_date (per shard)
+
+Query: WHERE customer_id = 123 AND order_date > '2024-01-01'
+Result: Single shard, uses index (fast)
+
+Query: WHERE order_date > '2024-01-01'
+Result: All shards, uses index on each (slower, distributed)
+
+GLOBAL INDEXES:
+Index spans all shards
+- Complex to maintain
+- Distributed transactions for updates
+- Can query any column efficiently
+
+Trade-off:
++ Better read performance
+- Much worse write performance
+- More complex failure scenarios
+
+9.2 Replication and Index Consistency
+-------------------------------------
+
+PRIMARY-REPLICA SETUP:
+Primary: Handles writes
+Replicas: Handle reads
+
+INDEX STRATEGIES:
+
+STRATEGY 1: Identical indexes
+All nodes have same indexes
+- Simple consistency
+- Replicas can replace primary
+- May not be optimal for read workloads
+
+STRATEGY 2: Specialized indexes
+Primary: Minimal indexes (write performance)
+Replicas: Different indexes per workload
+
+Example:
+Primary: 
+  - Primary key index only
+  - Maximum write throughput
+
+Replica 1 (User queries):
+  - User-facing query indexes
+  - Email, username, etc.
+
+Replica 2 (Analytics):
+  - Reporting indexes
+  - Date ranges, aggregations
+
+Replica 3 (Search):
+  - Full-text indexes
+  - Complex search patterns
+
+CONSISTENCY CHALLENGES:
+Async replication lag:
+- Index on replica may be behind
+- Queries may miss very recent data
+- Design for eventual consistency
+
+MITIGATION:
+- Read-your-writes: Route to primary
+- Session consistency
+- Tolerate small lag for most queries
+
+9.3 Multi-Region Deployments
+----------------------------
+
+GEOGRAPHICAL DISTRIBUTION:
+
+Setup: Database replicas in multiple regions
+- US-East
+- US-West
+- Europe
+- Asia
+
+INDEX STRATEGY:
+
+OPTION 1: Full replication
+Each region: Complete data + all indexes
+- Lowest read latency (local)
+- Highest write cost (replicate everywhere)
+- Highest storage cost
+
+OPTION 2: Partial replication
+Each region: Subset of data + relevant indexes
+- US customers: US regions
+- EU customers: EU regions
+- Lower replication cost
+- Complexity in routing
+
+OPTION 3: Hybrid
+Hot data: All regions
+Cold data: Archive region only
+- Balance of cost and performance
+
+CROSS-REGION QUERIES:
+Challenge: Joining data across regions
+Example: US customer with EU orders
+
+Solution options:
+1. Denormalize (duplicate data)
+2. Accept higher latency
+3. Asynchronous processing
+4. Global coordinator (complex)
+
+9.4 CAP Theorem and Index Availability
+--------------------------------------
+
+CAP THEOREM REMINDER:
+Can only guarantee 2 of 3:
+- Consistency
+- Availability
+- Partition tolerance
+
+INDEX IMPLICATIONS:
+
+CP SYSTEM (Consistency + Partition tolerance):
+Example: Traditional RDBMS with strong consistency
+
+Behavior during partition:
+- Cannot update indexes in partitioned segment
+- Reject writes to maintain consistency
+- Index always accurate
+
+AP SYSTEM (Availability + Partition tolerance):
+Example: Cassandra, DynamoDB
+
+Behavior during partition:
+- Accept writes in all partitions
+- Indexes may diverge temporarily
+- Eventually consistent
+
+Index strategy:
+- Optimistic updates
+- Anti-entropy repairs
+- Read repair mechanisms
+
+PRACTICAL EXAMPLE:
+Cassandra with secondary index
+
+Write: INSERT during partition
+- Written to local node
+- Index updated locally
+- Other replicas catch up later
+
+Read: SELECT using secondary index
+- May miss very recent writes
+- Coordinator queries multiple replicas
+- Merges results
+
+Design consideration:
+- Use indexes for eventually consistent queries
+- Use primary key for strongly consistent
+
+9.5 Distributed Query Planning
+------------------------------
+
+CHALLENGE:
+Query spans multiple shards/nodes.
+
+QUERY: SELECT * FROM orders 
+       WHERE customer_id = 123 
+       AND product_category = 'Electronics'
+       ORDER BY order_date DESC
+       LIMIT 10;
+
+Sharded by: customer_id
+Index per shard: (customer_id, order_date)
+                 (product_category)
+
+EXECUTION OPTIONS:
+
+OPTION 1: Push-down to shards
+1. Identify shard (customer_id = 123) -> Shard 7
+2. Execute on Shard 7 with local indexes
+3. Return results
+Best case: Single shard query
+
+OPTION 2: Scatter-gather
+1. Send query to all shards
+2. Each shard executes with local indexes
+3. Coordinator merges results
+4. Apply global LIMIT
+Needed when: Query doesn't include shard key
+
+OPTION 3: Two-phase execution
+1. Phase 1: Get potential matches from all shards
+2. Phase 2: Fetch full rows for top results
+Optimization: Avoid transferring full dataset
+
+COST MODELS:
+Distributed optimizer considers:
+- Network latency between nodes
+- Data size transferred
+- Local index availability
+- Parallelism opportunities
+
+9.6 Consensus and Index Updates
+-------------------------------
+
+DISTRIBUTED CONSENSUS:
+Ensures all nodes agree on index state.
+
+RAFT/PAXOS:
+Leader: Handles writes
+Followers: Replicate and vote
+
+INDEX UPDATE PROCESS:
+1. Client sends write to leader
+2. Leader proposes index update
+3. Followers acknowledge
+4. Once majority acks: Commit
+5. Return success to client
+
+PROPERTIES:
+- Strong consistency
+- Slower writes (consensus overhead)
+- Survives minority node failures
+
+EXAMPLE: CockroachDB
+- Uses Raft for consensus
+- Indexes consistently replicated
+- Can serve reads from followers (with timestamp)
+
+ALTERNATIVE: EVENTUAL CONSISTENCY
+Example: DynamoDB, Cassandra
+
+Process:
+1. Write to any node (low latency)
+2. Asynchronous replication
+3. Indexes eventually converge
+
+Trade-off:
++ Fast writes
++ High availability
+- Temporary inconsistency
+- More complex application logic
+
+================================================================================
+10. REAL-WORLD SYSTEM DESIGN SCENARIOS
+================================================================================
+
+10.1 Social Media Feed
+---------------------
+
+REQUIREMENTS:
+- Users: 100 million
+- Posts: 10 billion
+- Show user's feed (posts from following)
+- Ordered by recency
+- High read rate
+- Moderate write rate
+
+SCHEMA:
+Table: posts
+  id: bigint
+  user_id: bigint
+  content: text
+  created_at: timestamp
+  
+Table: follows
+  follower_id: bigint
+  followee_id: bigint
+
+NAIVE APPROACH:
+Query: SELECT posts.* FROM posts
+       JOIN follows ON posts.user_id = follows.followee_id
+       WHERE follows.follower_id = ?
+       ORDER BY posts.created_at DESC
+       LIMIT 20;
+
+Indexes needed:
+- posts(created_at)
+- follows(follower_id, followee_id)
+
+Problem:
+- Join with thousands of followees
+- Even with indexes: Slow
+- Doesn't scale
+
+OPTIMIZED APPROACH 1: Fan-out on write
+
+Table: feed_cache
+  user_id: bigint
+  post_id: bigint
+  created_at: timestamp
+
+Process:
+- When user posts: Insert into followers' feeds
+- Read feed: SELECT * FROM feed_cache WHERE user_id = ? ORDER BY created_at DESC LIMIT 20
+
+Indexes:
+- feed_cache(user_id, created_at)
+
+Trade-offs:
++ Extremely fast reads (simple index lookup)
++ No joins
+- Write amplification (user with 1M followers = 1M writes)
+- Storage increase
+
+OPTIMIZED APPROACH 2: Hybrid
+
+- Fan-out for most users
+- For celebrities (>10k followers): Pull at read time
+- Cache results
+
+Indexes:
+- feed_cache(user_id, created_at)
+- posts(user_id, created_at) for celebrities
+
+10.2 E-commerce Product Search
+------------------------------
+
+REQUIREMENTS:
+- Products: 100 million
+- Search by text
+- Filter by category, price, rating
+- Sort by various fields
+- Sub-second response
+
+SCHEMA:
+Table: products
+  id: bigint
+  name: varchar
+  description: text
+  category_id: int
+  price: decimal
+  rating: decimal
+  brand_id: int
+  in_stock: boolean
+
+CHALLENGE:
+Complex multi-dimensional search.
+
+SOLUTION: Elasticsearch + Database
+
+PRIMARY DATABASE:
+- Source of truth
+- Minimal indexes
+- ACID transactions
+
+ELASTICSEARCH:
+- Full-text search indexes
+- All filterable fields indexed
+- Faceted search
+- Near real-time
+
+Index structure:
+{
+  "name": {"type": "text", "analyzer": "standard"},
+  "category_id": {"type": "keyword"},
+  "price": {"type": "double"},
+  "rating": {"type": "double"},
+  "in_stock": {"type": "boolean"}
+}
+
+Query example:
+{
+  "query": {
+    "bool": {
+      "must": [{"match": {"name": "laptop"}}],
+      "filter": [
+        {"term": {"category_id": 5}},
+        {"range": {"price": {"lte": 1000}}},
+        {"term": {"in_stock": true}}
+      ]
+    }
+  },
+  "sort": [{"rating": "desc"}]
+}
+
+SYNC STRATEGY:
+1. Change in database
+2. Event/queue (Kafka, RabbitMQ)
+3. Elasticsearch indexer consumes
+4. Update Elasticsearch
+
+Consistency:
+- Eventual (acceptable for search)
+- Rebuild index periodically for safety
+
+10.3 Time-Series Metrics Database
+---------------------------------
+
+REQUIREMENTS:
+- Metrics from 100k servers
+- 1M data points per second
+- Retention: 1 year
+- Query patterns: Time-range + metric + server
+
+SCHEMA:
+Table: metrics
+  timestamp: timestamp
+  server_id: bigint
+  metric_name: varchar
+  value: double
+
+VOLUME:
+1M points/sec * 86400 sec/day * 365 days = 31 trillion rows
+
+CHALLENGE:
+- Massive write volume
+- Time-based queries
+- Old data rarely accessed
+
+SOLUTION: Time-partitioned tables
+
+Partitioning:
+Table: metrics_2024_01
+Table: metrics_2024_02
+...
+
+Benefits:
+- Insert into current partition (no index needed)
+- Query: Pruning eliminates partitions
+- Drop old partitions (fast delete)
+
+INDEX STRATEGY:
+Per partition:
+- Clustered index: (timestamp, server_id, metric_name)
+- No secondary indexes (sequential writes)
+
+ADVANCED: TimescaleDB approach
+- Hypertables (automatic partitioning)
+- Compression for old chunks
+- Continuous aggregations
+- Specialized indexes per chunk
+
+QUERY OPTIMIZATION:
+Query: Average CPU last 1 hour for server 123
+
+SELECT AVG(value) 
+FROM metrics
+WHERE timestamp > NOW() - INTERVAL '1 hour'
+  AND server_id = 123
+  AND metric_name = 'cpu_usage';
+
+Execution:
+1. Partition pruning (only last hour's partition)
+2. Index seek on (timestamp, server_id, metric_name)
+3. Sequential read of matching rows
+4. Aggregation
+
+10.4 Ride-Sharing Matching System
+---------------------------------
+
+REQUIREMENTS:
+- Match riders with nearby drivers
+- Real-time location updates
+- Sub-second matching
+- Consider: distance, rating, car type
+
+SCHEMA:
+Table: drivers
+  id: bigint
+  location: point (lat, lng)
+  available: boolean
+  rating: decimal
+  car_type: varchar
+
+NAIVE APPROACH:
+Query: Find drivers within 5km
+
+SELECT * FROM drivers
+WHERE available = true
+  AND ST_Distance_Sphere(location, POINT(?, ?)) < 5000
+ORDER BY ST_Distance_Sphere(location, POINT(?, ?))
+LIMIT 10;
+
+Index: Spatial index on location
+
+Problem:
+- Spatial index + additional filters = suboptimal
+- Frequent location updates = index thrashing
+
+OPTIMIZED APPROACH: Geohash
+
+Concept:
+- Divide world into grid
+- Each cell has a string ID
+- Nearby locations = similar geohash prefixes
+
+Example:
+User location: (37.7749, -122.4194) -> geohash: "9q8yy"
+
+Table: drivers
+  ...
+  geohash_6: varchar(6)  -- ~1.2km precision
+
+Index: (geohash_6, available, rating)
+
+Query:
+1. Calculate user's geohash: "9q8yy9"
+2. Get neighboring cells: ["9q8yy8", "9q8yy9", "9q8yyb", ...]
+3. Query:
+   SELECT * FROM drivers
+   WHERE geohash_6 IN (?, ?, ...)
+     AND available = true
+   ORDER BY rating DESC
+   LIMIT 50;
+4. Post-filter by exact distance
+5. Return top 10
+
+Benefits:
++ Fast index lookup (equality on prefix)
++ Works with standard B-Tree index
++ Predictable performance
+
+10.5 Real-Time Analytics Dashboard
+----------------------------------
+
+REQUIREMENTS:
+- Dashboard showing: Daily active users, revenue, conversions
+- Data: 1 billion events per day
+- Update: Every 5 minutes
+- Query: Last 30 days trends
+
+SCHEMA:
+Table: events
+  id: bigint
+  user_id: bigint
+  event_type: varchar
+  timestamp: timestamp
+  revenue: decimal
+
+NAIVE:
+Query: SELECT DATE(timestamp), COUNT(DISTINCT user_id), SUM(revenue)
+       FROM events
+       WHERE timestamp >= NOW() - INTERVAL '30 days'
+       GROUP BY DATE(timestamp);
+
+Even with index on timestamp:
+- Scans 30 billion rows
+- Too slow for dashboard
+
+SOLUTION 1: Materialized aggregates
+
+Table: daily_stats
+  date: date
+  active_users: bigint
+  revenue: decimal
+  conversions: bigint
+
+Process:
+- Background job: Aggregate hourly/daily
+- Dashboard queries pre-aggregated table
+
+Index: (date)
+
+Query:
+SELECT * FROM daily_stats
+WHERE date >= NOW() - INTERVAL '30 days'
+ORDER BY date;
+
+Super fast: ~30 rows only
+
+SOLUTION 2: Streaming aggregation (Kafka + ksqlDB)
+
+Stream:
+events -> Kafka -> ksqlDB (windowed aggregation) -> Output topic -> Dashboard
+
+Benefits:
+- Real-time updates
+- No database load
+- Scalable
+
+HYBRID:
+- Real-time: Last hour (ksqlDB)
+- Recent: Last 30 days (materialized table)
+- Historical: Data warehouse (columnar storage)
+
+10.6 Multi-Tenant SaaS Application
+----------------------------------
+
+REQUIREMENTS:
+- 10,000 tenants (companies)
+- Varying sizes: 1 to 100,000 users per tenant
+- Isolation between tenants
+- Efficient resource usage
+
+SCHEMA DESIGN OPTIONS:
+
+OPTION 1: Shared table
+Table: users
+  id: bigint
+  tenant_id: bigint
+  email: varchar
+  ...
+
+Every table has tenant_id
+
+Indexes:
+- (tenant_id, email) for lookup
+- (tenant_id, created_at) for queries
+
+Benefits:
++ Simple schema
++ Efficient for small tenants
++ Easy to add tenants
+
+Drawbacks:
+- Large tenants can affect others
+- Harder to customize per tenant
+- Security concerns (application must filter)
+
+OPTION 2: Schema per tenant
+Schema: tenant_123
+Schema: tenant_456
+...
+
+Benefits:
++ Complete isolation
++ Easy to backup/restore single tenant
++ Customization per tenant
+
+Drawbacks:
+- Thousands of schemas
+- Difficult to manage
+- Cross-tenant analytics complex
+
+OPTION 3: Database per tenant (large tenants)
+Large tenants: Own database
+Small tenants: Shared database
+
+Hybrid benefits:
++ Best performance for large tenants
++ Isolation where needed
++ Cost-effective for small tenants
+
+INDEX STRATEGY:
+
+Shared approach:
+- MUST include tenant_id in every index
+- Index: (tenant_id, <other columns>)
+- Partial indexes for specific tenants
+
+CREATE INDEX idx_vip_tenant 
+ON users(email) 
+WHERE tenant_id = 123;  -- VIP tenant
+
+Per-tenant approach:
+- Normal indexes (no tenant_id needed)
+- Optimized per tenant's usage
+
+================================================================================
+11. BEST PRACTICES AND ANTI-PATTERNS
+================================================================================
+
+11.1 Index Design Best Practices
+---------------------------------
+
+1. INDEX SELECTIVELY
+   ✓ Index columns used in WHERE, JOIN, ORDER BY
+   ✗ Don't index everything "just in case"
+   
+   Guideline: 3-5 indexes per table typical
+              10+ indexes = warning sign
+
+2. COLUMN ORDER IN COMPOSITE INDEXES
+   ✓ Most selective first
+   ✓ Equality before range
+   ✓ Match query patterns
+   ✗ Random order
+
+3. MONITOR AND MEASURE
+   ✓ Track index usage statistics
+   ✓ Query performance metrics
+   ✓ Regular review cycle
+   ✗ Set-and-forget approach
+
+4. BALANCE READ AND WRITE
+   ✓ Consider workload ratio
+   ✓ More indexes for read-heavy
+   ✓ Fewer indexes for write-heavy
+   ✗ Ignore write impact
+
+5. USE COVERING INDEXES JUDICIOUSLY
+   ✓ For hot queries
+   ✓ When columns are small
+   ✗ Including large columns
+   ✗ For every query
+
+6. MAINTAIN STATISTICS
+   ✓ Auto-analyze enabled
+   ✓ Manual analyze after bulk operations
+   ✗ Outdated statistics (optimizer blindness)
+
+7. TEST IN PRODUCTION-LIKE ENVIRONMENT
+   ✓ Similar data volume
+   ✓ Similar query patterns
+   ✓ Realistic hardware
+   ✗ Testing on tiny datasets
+
+8. DOCUMENT INDEX PURPOSES
+   ✓ Comment why index exists
+   ✓ Note queries it serves
+   ✓ Record decisions
+   ✗ Mystery indexes years later
+
+11.2 Common Anti-Patterns
+-------------------------
+
+ANTI-PATTERN 1: Index Every Column
+Problem: 
+- Massive write overhead
+- Wasted storage
+- No significant benefit
+
+Example:
+Table: users (20 columns)
+Indexes: 20 individual column indexes
+
+Reality: Only 3-4 are actually used
+
+Fix: Remove unused indexes
+
+ANTI-PATTERN 2: Wrong Column Order
+Problem:
+Index: (country, email)
+Query: WHERE email = 'test@example.com'
+
+Index is useless (email is second)
+
+Fix: Create (email) or (email, country)
+
+ANTI-PATTERN 3: Redundant Indexes
+Problem:
+Index 1: (a, b, c)
+Index 2: (a, b)
+Index 3: (a)
+
+Index 2 and 3 are redundant
+
+Fix: Drop Index 2 and 3 (Index 1 covers them)
+
+ANTI-PATTERN 4: Indexing Low-Cardinality Columns
+Problem:
+Index: (gender) where values are only M/F/Other
+
+Selectivity: 3/1000000 = 0.000003 (terrible)
+Optimizer often ignores this index
+
+Fix: Don't index, or use in composite index as secondary column
+
+ANTI-PATTERN 5: Missing Foreign Key Indexes
+Problem:
+Table: orders (foreign key: customer_id)
+No index on customer_id
+
+Impact:
+- Slow joins
+- DELETE from customers locks orders table
+- Cascade deletes are slow
+
+Fix: Always index foreign keys
+
+ANTI-PATTERN 6: LIKE with Leading Wildcard
+Problem:
+Query: WHERE email LIKE '%@example.com'
+Index on email is useless (starts with wildcard)
+
+Fix: 
+- Full-text search
+- Reverse index (if suffix search needed)
+- Application-level filtering
+- Redesign query if possible
+
+ANTI-PATTERN 7: Function in WHERE Without Expression Index
+Problem:
+Index: (created_at)
+Query: WHERE DATE(created_at) = '2024-01-01'
+
+Index not used (function on column)
+
+Fix Option 1: Rewrite query
+WHERE created_at >= '2024-01-01' 
+  AND created_at < '2024-01-02'
+
+Fix Option 2: Expression index
+CREATE INDEX idx_date ON table(DATE(created_at));
+
+ANTI-PATTERN 8: Over-Normalized Schema
+Problem:
+Excessive joins requiring many indexes
+
+Example:
+user -> user_profile -> user_preferences -> user_settings
+Query touches 4 tables, needs 8+ indexes
+
+Fix: Denormalize for query performance
+Consider: users table with common fields included
+
+ANTI-PATTERN 9: Ignoring Index Maintenance
+Problem:
+- Fragmented indexes
+- Outdated statistics
+- Bloated indexes
+
+Impact:
+- Degrading performance over time
+- Optimizer makes wrong decisions
+
+Fix:
+- Schedule regular REINDEX
+- Auto-analyze enabled
+- Monitor index health
+
+ANTI-PATTERN 10: Premature Optimization
+Problem:
+Creating indexes before understanding query patterns
+
+Better approach:
+1. Launch with minimal indexes
+2. Monitor real usage
+3. Add indexes based on data
+4. Iterate
+
+11.3 Performance Testing and Validation
+---------------------------------------
+
+METHODOLOGY:
+
+1. ESTABLISH BASELINE
+   Before adding index:
+   - Run query multiple times
+   - Record average time
+   - Note variance
+   - Check I/O stats
+
+2. ADD INDEX
+   Create index (preferably CONCURRENTLY)
+
+3. UPDATE STATISTICS
+   ANALYZE table_name;
+
+4. TEST QUERY
+   - Clear cache (for accurate test): SELECT pg_prm_cache();
+   - Run query multiple times
+   - Record average time
+
+5. CHECK EXECUTION PLAN
+   EXPLAIN ANALYZE query;
+   Verify index is actually used
+
+6. LOAD TEST
+   - Simulate concurrent queries
+   - Measure throughput
+   - Check for lock contention
+
+7. MEASURE WRITE IMPACT
+   Before/after:
+   - INSERT performance
+   - UPDATE performance
+   - DELETE performance
+
+METRICS TO TRACK:
+- Query latency (p50, p95, p99)
+- Throughput (QPS)
+- Index size
+- Buffer pool hit rate
+- Lock wait time
+- Write amplification
+
+TOOLS:
+- PostgreSQL: pg_stat_statements, EXPLAIN ANALYZE
+- MySQL: slow query log, EXPLAIN
+- Load testing: JMeter, K6, Locust
+- Monitoring: Prometheus, Grafana, DataDog
+
+11.4 Migration and Deployment Strategies
+----------------------------------------
+
+ADDING INDEX TO PRODUCTION:
+
+WRONG WAY:
+CREATE INDEX idx_name ON large_table(column);
+- Locks table
+- Blocks writes
+- Downtime
+
+RIGHT WAY (PostgreSQL):
+CREATE INDEX CONCURRENTLY idx_name ON large_table(column);
+- No table lock
+- Builds index in background
+- Slower but no downtime
+
+RIGHT WAY (MySQL 5.6+):
+CREATE INDEX idx_name ON large_table(column) ALGORITHM=INPLACE, LOCK=NONE;
+
+LARGE TABLE STRATEGY:
+
+Table: 1 billion rows
+Index creation: 3 hours
+
+Options:
+
+OPTION 1: Off-peak creation
+- Schedule during low traffic
+- Accept some performance impact
+- Monitor closely
+
+OPTION 2: Replica promotion
+1. Create index on replica (no user impact)
+2. Test queries on replica
+3. Promote replica to primary
+4. Create index on old primary (now replica)
+
+OPTION 3: Blue-green deployment
+1. Create new environment with index
+2. Migrate traffic gradually
+3. Decommission old environment
+
+REMOVING INDEXES:
+
+Safe approach:
+1. Rename index (make it unused)
+   ALTER INDEX idx_name RENAME TO idx_name_old;
+2. Monitor for 1-2 weeks
+3. If no issues: DROP INDEX idx_name_old;
+4. If problems: Rename back
+
+11.5 Monitoring and Alerting
+----------------------------
+
+KEY METRICS:
+
+1. INDEX USAGE
+   Query: SELECT schemaname, tablename, indexname, idx_scan, idx_tup_read
+          FROM pg_stat_user_indexes
+          WHERE idx_scan = 0;
+   
+   Alert: Indexes with 0 scans in 30 days
+
+2. INDEX SIZE
+   Query: SELECT indexname, pg_size_pretty(pg_relation_size(indexrelid))
+          FROM pg_stat_user_indexes;
+   
+   Alert: Index size > 10x expected
+
+3. TABLE BLOAT
+   Unused space in tables and indexes
+   Alert: Bloat > 30%
+   Action: VACUUM FULL or REINDEX
+
+4. INDEX SCANS vs SEQUENTIAL SCANS
+   High seq_scan with available index = problem
+   
+   Query: SELECT tablename, seq_scan, idx_scan
+          FROM pg_stat_user_tables
+          WHERE seq_scan > idx_scan;
+
+5. QUERY PERFORMANCE
+   Track slow queries
+   Alert: Query time > SLA (e.g., p95 > 100ms)
+
+6. WRITE THROUGHPUT
+   Monitor INSERT/UPDATE/DELETE rates
+   Alert: Degradation over time
+
+7. LOCK WAITS
+   High lock wait time = contention
+   Alert: Average lock wait > 10ms
+
+AUTOMATED RECOMMENDATIONS:
+
+Tools that suggest indexes:
+- PostgreSQL: pg_stat_statements + tools like pganalyze
+- MySQL: MySQL Workbench Index Advisor
+- Cloud providers: AWS RDS Performance Insights
+
+Process:
+1. Collect query patterns
+2. Analyze missing indexes
+3. Estimate benefit
+4. Suggest specific CREATE INDEX statements
+
+11.6 Disaster Recovery Considerations
+-------------------------------------
+
+BACKUP STRATEGIES:
+
+Index rebuild implications:
+- Logical backup (pg_dump): Includes CREATE INDEX statements
+- Restore time: Must rebuild all indexes (can be slow)
+- Strategy: Test restore times
+
+Physical backup (base backup):
+- Includes built indexes
+- Faster restore
+- Larger backup size
+
+POINT-IN-TIME RECOVERY:
+After restore, indexes are consistent
+No special handling needed
+
+INDEX CORRUPTION:
+
+Rare but possible causes:
+- Hardware failure
+- Filesystem corruption
+- Database bugs
+
+Detection:
+- Queries return wrong results
+- Index-only scan differs from seq scan
+
+Recovery:
+REINDEX INDEX idx_name;
+or
+REINDEX TABLE table_name;
+
+Prevention:
+- Regular checksums (PostgreSQL: data_checksums)
+- Validate critical indexes periodically
+
+11.7 Future-Proofing Index Strategy
+-----------------------------------
+
+DESIGN FOR GROWTH:
+
+Current: 1M rows
+Future: 100M rows
+
+Questions:
+1. Will current indexes scale?
+2. When to partition?
+3. When to shard?
+
+Proactive measures:
+- Monitor growth rate
+- Plan partition strategy
+- Design with sharding in mind
+
+EMERGING TECHNOLOGIES:
+
+1. Columnar storage integration
+   - PostgreSQL: cstore_fdw
+   - MySQL: ColumnStore engine
+   - When: Analytics on transactional DB
+
+2. In-memory indexes
+   - Redis
+   - Memcached with index-like structures
+   - When: Ultra-low latency requirements
+
+3. Specialized databases
+   - Time-series: TimescaleDB, InfluxDB
+   - Search: Elasticsearch
+   - Graph: Neo4j
+   - When: Specialized access patterns
+
+EVOLUTION STRATEGY:
+
+Stage 1: Single database, traditional indexes
+Stage 2: Add read replicas, specialized indexes
+Stage 3: Introduce caching layer
+Stage 4: Partition large tables
+Stage 5: Shard database
+Stage 6: Polyglot persistence (multiple DB types)
+
+Each stage: Re-evaluate index strategy
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Database indexes are a fundamental tool in system design, offering dramatic
+performance improvements for read operations at the cost of write overhead
+and storage. The key to effective index design is:
+
+1. Understanding your workload (read vs write ratio, query patterns)
+2. Choosing appropriate index types and structures
+3. Monitoring and iterating based on real usage
+4. Balancing performance with cost and complexity
+
+There is no one-size-fits-all solution. Every system requires careful
+analysis and tailored index strategy. Start simple, measure everything,
+and optimize based on data.
+
+Remember: An index is a trade-off, not a magic solution. Use them wisely.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
