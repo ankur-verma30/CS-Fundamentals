@@ -1276,8 +1276,8 @@ Under limit     Over limit
      │         │
      ▼         ▼
 ┌──────────────┐   ┌────────────────────┐
-│ Allow        │   │ Reject              │
-│ Process Req. │   │ 429 Too Many Req.   │
+│ Allow        │   │ Reject             │
+│ Process Req. │   │ 429 Too Many Req.  │
 └────┬─────────┘   └────────────────────┘
      │
      ▼
@@ -1315,9 +1315,9 @@ Under limit     Over limit
           ┌────────────────┘          └────────────────┐
           ▼                                            ▼
 ┌────────────────┐        ┌────────────────┐   ┌────────────────┐
-│ Users Service  │        │ Orders Service │   │ Payments Service│
+│ Users Service  │        │ Orders Service │   │Payments Service│
 └────────────────┘        └────────────────┘   └────────────────┘
-
+                           |
                            ▼
                    ┌────────────────┐
                    │ Search Service │
@@ -1337,3 +1337,577 @@ Under limit     Over limit
 🔷 Core Concepts of System Design
 ===================================
 1️⃣ Scalability
+➤ Every successful application eventually hits the same wall: more users, more data, more requests.
+➤ What worked smoothly for 1,000 users starts showing cracks at 100,000.
+➤ What handled 100 requests per second crumbles at 10,000.
+👉 This is where scalability becomes critical.
+
+➤ Scalability is the ability of a system to handle increased load by adding resources.
+➤ The key word here is "ability", a scalable system can grow to meet demand without requiring a complete architectural overhaul.
+
+
+🔄 Measuring Scalability
+Before scaling, you need to understand how to measure it. You cannot improve what you do not measure, and vague statements like "we need to scale" are useless without concrete numbers.
+
+Scalability is typically evaluated along these dimensions:
+
+1️⃣ Load Metrics
+| Metric                    | Description                                       | Example             |
+| ----------------------------- | ----------------------------------------------------- | ----------------------- |
+| Requests per second (RPS) | Number of API calls the system handles per second     | 10,000 RPS              |
+| Concurrent users          | Users active at the same time                         | 50,000 concurrent users |
+| Data volume               | Total amount of data stored or processed              | 10 TB storage           |
+| Throughput                | Data transferred per unit time                        | 1 GB/s                  |
+| Query rate (QPS)          | Database queries executed per second                  | 50,000 QPS              |
+| Message rate              | Messages processed via queues (Kafka, RabbitMQ, etc.) | 100,000 messages/sec    |
+
+
+2️⃣ Performance Under Load
+A system scales well if it maintains acceptable performance as load increases. This is often measured by response time or latency.
+| Load Increase | Response Time | Behavior | What It Indicates                            |
+| ----------------- | ----------------- | ------------ | ------------------------------------------------ |
+| 1× (Baseline) | 50 ms             | Baseline     | Normal system operation                          |
+| 2×            | 55 ms             | Excellent    | Sublinear growth, caching & scaling working well |
+| 5×            | 70 ms             | Good         | System handling increased load efficiently       |
+| 10×           | 150 ms            | Acceptable   | Linear degradation, predictable scaling          |
+| 10×           | 500 ms            | Concerning   | Superlinear degradation, bottleneck forming      |
+| 10×           | Timeout           | Critical     | System has reached breaking point                |
+
+➤ The goal is to keep performance relatively stable as load increases.
+➤ Ideally, you want linear or sublinear degradation, where doubling load does not double response time.
+➤ When response times spike or the system starts timing out, you have hit a scalability wall.
+
+
+🔄 Vertical Scaling (Scale Up)
+➤ Vertical scaling means adding more power to your existing machines.
+➤ Instead of adding more servers, you upgrade to bigger ones.
+
+┌──────────────────────┐     ┌──────────┐     ┌────────────────────────┐
+│        Server        │ --> │ UPGRADE  │ --> │         Server         │
+│----------------------│     └──────────┘     │------------------------│
+│  CPU  : 4 Cores      │                      │  CPU  : 32 Cores       │
+│  RAM  : 16 GB        │                      │  RAM  : 256 GB         │
+└──────────────────────┘                      └────────────────────────┘
+        BEFORE                                      AFTER
+
+
+This is often the first response to performance problems because it requires no architectural changes.
+
+🔄 Common Vertical Scaling Actions
+1️⃣ Add more CPU cores for compute-intensive workloads
+2️⃣ Increase RAM to cache more data in memory
+3️⃣ Use faster SSDs to reduce I/O bottlenecks
+4️⃣ Upgrade network cards for higher bandwidth
+
+
+🔄 Pros
+1️⃣ Simple ─────────▶ No code changes required. Just move to a bigger machine.
+2️⃣ Lower latency ─────────▶ All data is local, no network hops.
+3️⃣ No distributed complexity ─────────▶ A single server means no network partitions, no data synchronization issues.
+
+
+🔄 Cons
+1️⃣ Hardware limits ─────────▶ You cannot scale beyond the largest available machine. Even cloud providers have limits.
+2️⃣ Single point of failure ─────────▶ One server means one failure point. If it goes down, everything goes down.
+3️⃣ Cost curve ─────────▶ Larger machines cost disproportionately more. Doubling capacity often more than doubles cost.
+4️⃣ Downtime during upgrades ─────────▶ Migrating to a bigger machine typically requires downtime.
+
+
+🔄 When to Use Vertical Scaling
+Vertical scaling works well for:
+1️⃣ Databases where data locality matters (before sharding becomes necessary)
+2️⃣ Applications with strong consistency requirements
+3️⃣ Early-stage startups that need simplicity over scale
+4️⃣ Workloads with predictable, moderate growth
+
+⚡ Note:Never dismiss vertical scaling as "not scalable." Many real-world systems run on vertically scaled databases for years. The key is knowing when horizontal scaling becomes necessary.
+
+
+🔄 Horizontal Scaling (Scale Out)
+Vertical scaling eventually hits a ceiling. When the biggest available machine is not big enough, or when you need fault tolerance that a single machine cannot provide, you need a different approach.
+
+Horizontal scaling means adding more machines rather than upgrading existing ones. Instead of one powerful server, you distribute the load across many commodity servers.
+
+This is how companies like Google, Netflix, and Amazon handle billions of requests.
+
+                ┌────────────────┐
+                │  Load Balancer │
+                └────────────────┘
+                         │
+     ┌───────────────────┼───────────────────┬───────────────────┐
+     │                   │                   │                   │
+┌──────────┐       ┌──────────┐       ┌──────────┐       ┌──────────┐
+│ Server 1 │       │ Server 2 │       │ Server 3 │  ...  │ Server N │
+└──────────┘       └──────────┘       └──────────┘       └──────────┘
+
+Instead of one powerful server, you have many commodity servers working together.
+A load balancer distributes incoming requests across all servers.
+
+
+🔄 Pros
+1️⃣ No hard limit ─────────▶ You can keep adding servers as needed. Cloud providers make this nearly unlimited.
+2️⃣ Fault tolerance ─────────▶ If one server fails, others continue serving traffic. No single point of failure.
+3️⃣ Cost-effective ─────────▶ Many smaller machines often cost less than one giant machine.
+4️⃣ Geographic distribution ─────────▶ You can place servers closer to users for lower latency.
+
+
+🔄 Cons
+1️⃣ Complexity ─────────▶ Distributed systems are harder to build, debug, and maintain.
+2️⃣ Data consistency ─────────▶ Keeping data synchronized across servers is challenging.
+3️⃣ Network overhead ─────────▶ Communication between servers adds latency.
+4️⃣ Stateless requirement ─────────▶ Application servers typically need to be stateless, which may require architectural changes.
+
+
+===================================
+🔷 Stateless 🆚 Stateful Services
+====================================
+For horizontal scaling to work effectively, services should be stateless. A stateless service does not store any session data locally. Each request can be handled by any server.
+
+The difference is significant for scaling:
+1️⃣ Stateless Services
+User A
+  │
+  ▼
+┌────────────────┐
+│ Load Balancer  │
+└────────────────┘
+        │
+   ┌────┴────┐
+   │         │
+┌──────────┐ ┌──────────┐
+│ Server 1 │ │ Server 2 │
+└──────────┘ └──────────┘
+      │           │
+      └──────┬────┘
+             ▼
+        ┌──────────┐
+        │  Redis   │
+        │ Session  │
+        │  Store   │
+        └──────────┘
+
+
+2️⃣ Stateful Services
+User A
+  │
+  ▼
+┌────────────────┐
+│ Load Balancer  │
+│ (Sticky Sess.) │
+└────────────────┘
+        │
+        ▼
+┌──────────┐        ✖ Cannot Route Here
+│ Server 1 │ ──────────────────────────┐
+│Has User A│                           │
+│ Session  │                           │
+└──────────┘                     ┌──────────┐
+                                 │ Server 2 │
+                                 └──────────┘
+
+
+➤ In the stateful model, once a user's session is stored on Server 1, all their requests must go to that same server.
+➤ This creates hotspots and makes it risky to remove servers.
+➤ In the stateless model, session data lives in a shared store like Redis, so any server can handle any request.
+➤ The load balancer has complete freedom to distribute traffic.
+
+To make services stateless:
+1️⃣ Store session data in a shared cache (Redis, Memcached)
+2️⃣ Use tokens (JWT) instead of server-side sessions
+3️⃣ Store uploaded files in object storage (S3) instead of local disk
+
+
+🔄 Scaling Different Components
+A typical system is not monolithic. It has multiple components, each with different scaling characteristics and challenges. Understanding these differences is crucial because the scaling strategy that works for one tier often does not work for another.
+
+1️⃣ Application Tier
+Application servers are usually the easiest to scale horizontally, provided they are stateless:
+
+Clients
+   │
+   ▼
+┌────────────────┐
+│ Load Balancer  │
+└────────────────┘
+        │
+   ┌────┼───────────────┐
+   │    │               │
+   ▼    ▼               ▼
+┌────────────┐  ┌────────────┐  ┌────────────┐
+│ App Server │  │ App Server │  │ App Server │
+│     1      │  │     2      │  │     3      │
+└────────────┘  └────────────┘  └────────────┘
+      │               │               │
+      └───────┬───────┴───────┬───────┘
+              ▼               ▼
+        ┌────────────┐   ┌────────────┐
+        │ Redis Cache│   │  Database  │
+        └────────────┘   └────────────┘
+
+
+👉 Key strategies:
+1️⃣ Make services stateless
+2️⃣ Use a load balancer to distribute traffic
+3️⃣ Auto-scale based on CPU, memory, or request count
+4️⃣ Deploy across multiple availability zones
+
+
+🔄 Database Tier
+➤ Databases are typically the hardest to scale because they manage state.
+➤ Unlike application servers, you cannot simply spin up more database instances and put a load balancer in front of them.
+➤ Data consistency, durability, and transaction isolation all complicate matters.
+
+The approach depends on your workload pattern:
+                         ┌────────────────────────┐
+                         │   What's your          │
+                         │     bottleneck?        │
+                         └───────────┬────────────┘
+                                     │
+        ┌───────────────┬────────────┼─────────────┬───────────────┐
+        │               │            │             │               │
+        ▼               ▼            ▼             ▼
+┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  ┌─────────────────┐
+│  Read-heavy  │  │ Write-heavy  │  │        Both        │  │ Need flexibility│
+└──────┬───────┘  └──────┬───────┘  └────────┬──────────┘  └─────────┬───────┘
+       │                 │                   │                         │
+       ▼                 ▼                   ▼                         ▼
+┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  ┌─────────────────┐
+│ Read Replicas│  │   Sharding   │  │ Sharding + Replicas│  │  Consider NoSQL  │
+└──────┬───────┘  └──────┬───────┘  └────────┬──────────┘  └─────────────────┘
+       │                 │                   │
+       ▼                 ▼                   ▼
+┌──────────────────┐ ┌──────────────────────┐ ┌──────────────────────────┐
+│ Typical 10:1–100:1│ │ High write volume or │ │ High read + high write   │
+│ read:write ratio  │ │ large dataset        │ │ load at large scale      │
+└──────────────────┘ └──────────────────────┘ └──────────────────────────┘
+
+1️⃣ Read Replicas
+For read-heavy workloads (which most applications are), create copies of your database that handle read queries:
+
+                         Writes
+                           │
+                           ▼
+                     ┌──────────────┐
+                     │  Primary DB  │
+                     └──────┬───────┘
+                            │
+                 Replication │ Replication
+                            │
+              ┌─────────────▼─────────────┐
+              │                           │
+              ▼                           ▼
+        ┌──────────────┐           ┌──────────────┐
+        │ Read Replica │           │ Read Replica │
+        │      1       │           │      2       │
+        └──────┬───────┘           └──────┬───────┘
+               │                           │
+             Reads                       Reads
+               │                           │
+               └───────────────┬───────────┘
+                               ▼
+                         ┌──────────────┐
+                         │ Application  │
+                         └──────────────┘
+
+
+Primary handles all writes, replicas receive changes and serve reads.
+When to use ➡ Read-to-write ratio is 10:1 or higher, and writes are not the bottleneck.
+
+
+🔄 Pros
+1️⃣ Simple to set up (managed services handle it)
+2️⃣ Offloads read traffic from primary
+3️⃣ Provides read availability if primary fails
+4️⃣ No application changes for basic setup
+
+
+🔄 Cons
+1️⃣ Does not help with write-heavy workloads
+2️⃣ Introduces replication lag (stale reads)
+3️⃣ Replicas consume storage (full data copy)
+4️⃣ Failover can cause brief inconsistency
+
+
+🔁 Sharding (Partitioning)
+When read replicas are not enough, or when write volume exceeds what a single primary can handle, you need to split your data across multiple databases based on a partition key:
+
+                        ┌──────────────┐
+                        │ Application  │
+                        └───────┬──────┘
+                                │
+                                ▼
+                        ┌──────────────┐
+                        │ Shard Router │
+                        └───────┬──────┘
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          │                     │                     │
+          ▼                     ▼                     ▼
+     ┌──────────┐          ┌──────────┐          ┌──────────┐
+     │ Shard 1  │          │ Shard 2  │          │ Shard 3  │
+     └────┬─────┘          └────┬─────┘          └────┬─────┘
+          │                     │                     │
+     Users A–H              Users I–P              Users Q–Z
+
+
+🔄 Pros
+1️⃣ Distributes both reads AND writes
+2️⃣ Scales horizontally (add more shards)
+3️⃣ Each shard is smaller, faster
+4️⃣ Can place shards in different regions
+
+
+🔄 Cons
+1️⃣ Complex to implement correctly
+2️⃣ Cross-shard queries are expensive or impossible
+3️⃣ Rebalancing shards is operationally difficult
+4️⃣ Transactions across shards are very hard
+
+
+🔄 Common sharding strategies:
+1️⃣ Range-based ─────────▶ Shard by value ranges (A-H, I-P, Q-Z)
+2️⃣ Hash-based ─────────▶ Hash the key and mod by number of shards
+3️⃣ Directory-based ─────────▶ Maintain a lookup table mapping keys to shards
+
+
+🔁 NoSQL Databases
+NoSQL databases like Cassandra, MongoDB, and DynamoDB are designed for horizontal scaling from the ground up:
+1️⃣ Built-in sharding ─────────▶ Data is automatically distributed
+2️⃣ Eventual consistency ─────────▶ Trade strong consistency for availability
+3️⃣ No joins ─────────▶ Data model must accommodate denormalization
+
+
+🔄 Pros
+1️⃣ Built-in sharding (automatic distribution)
+2️⃣ Designed for horizontal scale
+3️⃣ Often better write performance
+4️⃣ Schema flexibility
+
+
+🔄 Cons
+1️⃣ Different query patterns than SQL
+2️⃣ No joins (denormalization required)
+3️⃣ Eventual consistency in many cases
+4️⃣ Less tooling ecosystem than SQL
+
+
+🔄 Caching Tier
+➤ Caching reduces load on databases and improves response times.
+➤ A well-designed cache can handle 100x the throughput of a database, making it essential for high-traffic systems.
+➤ Redis, for example, can handle 100,000+ operations per second on a single node.
+
+                       ┌──────────────┐
+                       │ Application  │
+                       └───────┬──────┘
+                               │
+                             Miss
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+        ▼                      ▼                      ▼
+  ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
+  │ Redis Node 1 │       │ Redis Node 2 │       │ Redis Node 3 │
+  └───────┬──────┘       └───────┬──────┘       └───────┬──────┘
+         Miss                   Miss                   Miss
+           │                      │                      │
+           └───────────────┬──────┴──────┬──────────────┘
+                           ▼
+                     ┌──────────────┐
+                     │   Database   │
+                     └──────────────┘
+
+🔄 Cache Scaling strategies:
+1️⃣ Redis Cluster ─────────▶ Automatically partitions data across nodes using hash slots
+2️⃣ Consistent hashing ─────────▶ Distributes keys evenly and minimizes redistribution when nodes are added or removed
+3️⃣ Cache-aside pattern ─────────▶ Application checks cache first, falls back to database on cache miss, then populates the cache
+
+
+🔁 Message Queue Tier
+➤ Message queues are essential for scaling asynchronous workloads.
+➤ They decouple producers from consumers, allowing each to scale independently, and they buffer traffic spikes so consumers can process at their own pace.
+
+        Producer 1                Producer 2
+            │                         │
+            │                         │
+            └──────────┬──────────────┘
+                       ▼
+             ┌──────────────────────┐
+             │     Message Queue    │
+             │   Kafka / RabbitMQ   │
+             └──────────┬───────────┘
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+        ▼               ▼               ▼
+   Consumer 1       Consumer 2       Consumer 3
+
+❓ How queues help scalability:
+1️⃣ Decouple producers and consumers ─────────▶ Scale each independently
+2️⃣ Buffer traffic spikes ─────────▶ Queue absorbs bursts, consumers process at their own pace
+3️⃣ Partition topics ─────────▶ Kafka partitions allow parallel consumption
+
+
+✅ Example: Scaling from 0 to millions of users
+Theory is useful, but seeing scalability in action makes it stick. Let us walk through how a startup might scale a social media application from zero to millions of users. Each stage solves a specific bottleneck that emerged from growth.
+
+          Users
+            │
+            ▼
+     ┌────────────────┐
+     │  Single Server │
+     │                │
+     │  Application   │
+     │     +          │
+     │    MySQL       │
+     └────────────────┘
+
+➤ At launch, everything runs on one machine.
+➤ The application and database share the same server.
+➤ This setup is simple, cheap, and perfectly adequate for a few thousand users.
+➤ There is no distributed system complexity, no network latency between components, and debugging is straightforward.
+
+➤ The bottleneck emerges when the application and database start competing for CPU and memory on the same machine.
+
+
+Stage 2️⃣: Separate Database (10K-100K users)
+        Users
+          │
+          ▼
+   ┌──────────────┐
+   │  App Server  │
+   │ Application  │
+   └──────┬───────┘
+          │
+          ▼
+   ┌──────────────────────┐
+   │        MySQL         │
+   │   Dedicated Server   │
+   └──────────────────────┘
+
+➤ The first scaling move is usually separating the database onto its own machine.
+➤ Now each component can be tuned independently.
+➤ You can give the database server more RAM for caching, while the app server gets more CPU for request processing.
+
+➤ The bottleneck shifts to the database.
+➤ As user counts grow, the database handles more queries, and read operations start slowing down.
+
+
+Stage 3️⃣: Add Caching (100K-500K users)
+
+Users
+  │
+  ▼
+┌────────────┐   Cache Miss   ┌────────────┐   Cache Miss   ┌────────────┐
+│ App Server │ ─────────────▶ │ Redis Cache│ ─────────────▶│   MySQL    │
+└────────────┘                └────────────┘                └────────────┘
+
+➤ Adding a cache layer dramatically reduces database load.
+➤ Hot data, things like user profiles, recent posts, and session data, gets served from memory.
+➤ Redis can handle hundreds of thousands of reads per second, far more than MySQL.
+➤ With a good caching strategy, 80-90% of reads never hit the database.
+
+➤ The bottleneck is now the single app server.
+➤ It cannot handle the incoming request volume.
+
+
+Stage 4️⃣: Multiple App Servers (500K-2M users)
+
+Users
+  │
+  ▼
+┌──────────────┐
+│ Load Balancer│
+└──────┬───────┘
+       │
+       ▼
+┌────────────┐   ┌────────────┐   ┌────────────┐
+│App Server 1│   │App Server 2│   │App Server N│
+└──────┬─────┘   └──────┬─────┘   └──────┬─────┘
+       │                │                │
+       └───────┬────────┴────────┬───────┘
+               ▼                 ▼
+          ┌────────┐        ┌────────┐
+          │ Redis  │        │ MySQL  │
+          └────────┘        └────────┘
+
+
+➤ This is where horizontal scaling begins.
+➤ A load balancer distributes traffic across multiple app servers.
+➤ Each server is stateless, storing no session data locally.
+➤ The Redis cache serves as the shared session store.
+
+➤ Adding more app servers is now trivial.
+❓ Need more capacity? Spin up another server. Traffic spike during peak hours? Auto-scaling adds servers automatically.
+
+➤ The bottleneck shifts back to the database.
+➤ With more app servers generating more queries, the single MySQL instance becomes overwhelmed.
+
+
+Stage 5️⃣: Read Replicas (2M-10M users)
+
+                         Writes
+                           │
+                           ▼
+┌────────────┐        ┌──────────────┐
+│ App Servers│ ─────▶ │ Primary MySQL│
+└──────┬─────┘        └──────┬───────┘
+       │                     │
+       │                 Replication
+       │                     │
+       │          ┌──────────┴──────────┐
+       │          │                     │
+       ▼          ▼                     ▼
+   ┌────────┐  ┌──────────┐        ┌──────────┐
+   │ Redis  │  │ Replica 1│        │ Replica 2│
+   └────────┘  └─────┬────┘        └─────┬────┘
+                      │                   │
+                    Reads               Reads
+                      │                   │
+                      └───────────┬───────┘
+                                  ▼
+                             App Servers
+
+
+
+➤ Most applications are read-heavy, with reads outnumbering writes by 10:1 or more.
+➤ Read replicas take advantage of this pattern.
+➤ The primary database handles all writes, while replicas serve read queries.
+➤ This multiplies read capacity without changing the application much.
+
+➤ The trade-off is replication lag.
+➤ Replicas may be a few milliseconds behind the primary, so recently written data might not be immediately visible on reads.
+➤ For most applications, this is acceptable.
+➤ The bottleneck becomes write throughput.
+➤ One primary database can only handle so many writes per second.
+
+
+Stage 6️⃣: Sharding (10M+ users)
+
+App Servers
+     │
+     ▼
+┌──────────────┐
+│ Shard Router │
+└───────┬──────┘
+        │
+┌───────┼───────────────┬────────────────┐
+│       │               │                │
+▼       ▼               ▼                ▼
+┌──────────┐      ┌──────────┐      ┌──────────┐
+│ Shard 1  │      │ Shard 2  │      │ Shard 3  │
+└────┬─────┘      └────┬─────┘      └────┬─────┘
+     │                 │                 │
+Users 0–999999   Users 1M–1.99M       Users 2M+
+
+
+➤ Sharding is the final frontier of relational database scaling.
+➤ Data is partitioned across multiple databases based on a shard key, typically user ID.
+➤ Each shard handles a subset of users, distributing both read and write load.
+
+➤ This is powerful but comes with significant complexity.
+➤ Cross-shard queries become expensive or impossible.
+➤ Rebalancing shards when they grow unevenly is operationally challenging.
+➤ Many teams at this stage consider moving to distributed databases like CockroachDB or Vitess that handle sharding automatically.
+
+
+
