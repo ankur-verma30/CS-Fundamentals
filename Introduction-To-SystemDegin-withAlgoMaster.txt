@@ -31,7 +31,6 @@
 🔷 10 Big Questions of System Design
 ======================================
 On a high level, system design revolves around answering these 10 big questions:
-
 1️⃣ Scalability ─────────▶ How will the system handle a large number of users or requests simultaneously?
 2️⃣ Latency and Performance ─────────▶ How can we reduce response time and ensure low-latency performance under load?
 3️⃣ Communication ─────────▶ How do different components of the system interact with each other?
@@ -85,7 +84,6 @@ Estimate:
 ✔️ Queries per second (QPS) or requests per second (RPS)
 ✔️ Bandwidth needs
 ✔️ Number of servers or instances required
-
 👉 These rough calculations help guide architectural decisions and ensure your design is grounded in realistic expectations.
 
 
@@ -96,7 +94,6 @@ Define:
 ✔️ The main modules and services
 ✔️ Data flow between them
 ✔️ External dependencies (e.g., third-party APIs, external databases)
-
 👉 At this stage, you’re sketching the architecture blueprint, a bird’s-eye view of the system.
 
 
@@ -1910,4 +1907,887 @@ Users 0–999999   Users 1M–1.99M       Users 2M+
 ➤ Many teams at this stage consider moving to distributed databases like CockroachDB or Vitess that handle sharding automatically.
 
 
+==================
+🔷 Availability
+==================
+What good is a system that can handle millions of requests if it crashes when a single server fails?
+This is where availability comes in.
 
+➤ Availability measures how often your system is operational and accessible to users.
+➤ A highly available system continues functioning even when individual components fail.
+➤ availability is not the same as reliability. A system can be highly available (always up) but unreliable (sometimes gives wrong answers).
+
+
+🔄 Measuring Availability
+Availability is typically expressed as a percentage of uptime over a given period. The formula is straightforward: Availability = Uptime / (Uptime + Downtime)
+
+✅ For example, if a system was up for 364 days and down for 1 day in a year: Availability = 364 / 365 = 99.73%
+
+➤ That single day of downtime drops you below "three nines" availability.
+➤ When you frame it as "one day," it sounds acceptable.
+
+
+🔄 The "Nines" of Availability
+Availability is often described in terms of "nines." Each additional nine dramatically reduces allowed downtime:
+| Availability         | Downtime per Year | Downtime per Month | Downtime per Week |
+| ------------------------ | --------------------- | ---------------------- | --------------------- |
+| 99% (two nines)      | 3.65 days             | 7.3 hours              | 1.68 hours            |
+| 99.9% (three nines)  | 8.76 hours            | 43.8 minutes           | 10.1 minutes          |
+| 99.99% (four nines)  | 52.6 minutes          | 4.38 minutes           | 1.01 minutes          |
+| 99.999% (five nines) | 5.26 minutes          | 26.3 seconds           | 6.05 seconds          |
+| 99.9999% (six nines) | 31.5 seconds          | 2.63 seconds           | 0.6 seconds           |
+
+
+🔄 Availability in Series vs Parallel
+How you combine components dramatically affects overall availability.
+
+1️⃣ Components in Series
+When components are in series, meaning all must work for the system to function, availability multiplies:
++-------------+     +-------------+     +-------------+
+|  Web Server | --> | App Server  | --> |  Database   |
+|   99.9%     |     |   99.9%     |     |   99.9%     |
++-------------+     +-------------+     +-------------+
+
+Overall = 99.9% × 99.9% × 99.9% = 99.7%
+➤ Each component in the chain reduces overall availability.
+➤ You started with three components, each at "three nines," but the combined system is below three nines.
+➤ Add more components in series, and availability keeps dropping.
+
+
+2️⃣ Components in Parallel
+When components are in parallel, meaning any can handle the request, availability improves dramatically:
+                 +----------------+
+                 |  Load Balancer |
+                 +----------------+
+                         |
+            --------------------------------
+            |                              |
+     +---------------+            +---------------+
+     |   Server 1    |            |   Server 2    |
+     |    99.9%      |            |    99.9%      |
+     +---------------+            +---------------+
+For both servers to be down simultaneously, both must fail at the same time:
+       ✔️ Failure probability = 0.1% × 0.1% = 0.0001%
+       ✔️ Availability = 100% - 0.0001% = 99.9999%
+Two servers with 99.9% availability each give you nearly six nines when running in parallel. This is the power of redundancy.
+
+
+🔄 Common Failure Modes
+➤ To design for availability, you must understand how things fail.
+➤ Failures do not ask permission, and they rarely happen at convenient times.
+➤ Knowing the common failure modes helps you prepare for them.
+
+1️⃣ Hardware Failures
+Everything physical eventually breaks. The question is when, not if.
+| Component      | Typical Failure Rate | MTBF (Mean Time Between Failures) |
+| ------------------ | ------------------------ | ------------------------------------- |
+| Hard Drive (HDD)   | 2–4% per year            | ~300,000 hours                        |
+| SSD                | 0.5–1% per year          | ~1–2 million hours                    |
+| Server             | 2–4% per year            | ~300,000 hours                        |
+| Network Switch     | 1–2% per year            | ~500,000 hours                        |
+| Power Supply (PSU) | 1–3% per year            | ~400,000 hours                        |
+MTBF = Mean Time Between Failures.
+
+➤ At scale, hardware failures are not exceptional events.
+➤ They are routine. A data center with 10,000 servers will see hundreds of hardware failures per year.
+➤ If your architecture cannot handle a server dying at any moment, you do not have a highly available system.
+
+
+2️⃣ Software Failures
+Hardware breaks randomly. Software breaks creatively.
+1️⃣ Bugs ─────────▶ Code defects that cause crashes or incorrect behavior
+2️⃣ Memory leaks ─────────▶ Gradual resource exhaustion
+3️⃣ Deadlocks ─────────▶ Processes waiting on each other indefinitely
+4️⃣ Cascading failures ─────────▶ One failure triggering failures in dependent systems
+
+
+3️⃣ Network Failures
+Networks fail in ways that are subtle, intermittent, and painful to debug.
+1️⃣ Packet loss ─────────▶ Data does not reach its destination
+2️⃣ Latency spikes ─────────▶ Delays in communication
+3️⃣ Partition ─────────▶ Network split isolates groups of servers
+4️⃣ DNS failures ─────────▶ Name resolution stops working
+
+
+4️⃣ Human Errors
+Here’s the uncomfortable reality: many studies attribute 70–80% of outages to human error, not hardware, not software, but people.
+
+✅ Common examples:
+1️⃣ Configuration mistakes ─────────▶ wrong environment variable, typo in a config file
+2️⃣ Failed deployments ─────────▶ bad code or broken migrations pushed to production
+3️⃣ Accidental deletions ─────────▶ running the wrong command in the wrong place
+4️⃣ Capacity planning errors ─────────▶ underestimating traffic for a launch
+This is why automation, testing, and guardrails matter so much. Humans make mistakes. Good systems make those mistakes hard to make and easy to recover from.
+
+
+🔁 Redundancy: The Foundation of Availability
+➤ If there is one concept that underpins all of availability, it is redundancy.
+➤ The logic is simple: if you have only one of something, when it fails, you have zero.
+➤ If you have two, when one fails, you still have one.
+
+Redundancy means having backup components that can take over when primary components fail.
+
+1️⃣ Active-Passive (Standby)
+➤ In an active-passive configuration, one component handles all the work while another waits idle as a backup.
+➤ When the active component fails, the passive one takes over.
+
+                     Traffic
+                        |
+                        v
+                +----------------+
+                |  Load Balancer |
+                | / Failover Mgr |
+                +----------------+
+                        |
+              -------------------------
+              |                       |
+      +-------------------+   +--------------------+
+      |  Primary Server   |   |  Standby Server    |
+      |      ACTIVE       |   |     PASSIVE        |
+      +-------------------+   +--------------------+
+              |
+        (Serves Requests)
+
+      ❌ If Primary Fails
+              ↓
+      ✅ Standby Becomes ACTIVE
+
+Active-passive mode is commonly used in situations where you want a single source of truth and controlled writes like databases, stateful services, and systems requiring a single leader.
+
+
+🔄 Pros
+1️⃣ Simple to reason about
+2️⃣ Standby typically uses fewer resources
+3️⃣ Clear source of truth
+
+
+🔄 Cons
+1️⃣ Failover takes time (detection + promotion + routing changes)
+2️⃣ Standby may not be truly “production-ready” because it isn’t tested under real load
+3️⃣ Potential for split-brain problem
+
+
+The standby can be configured in different states of readiness:
+| Standby Type | State                                  | Failover Time  | Cost |
+| ---------------- | ------------------------------------------ | ------------------ | -------- |
+| Cold Standby | Powered off, needs to boot                 | Minutes            | Lowest   |
+| Warm Standby | Running but not receiving traffic          | Seconds to minutes | Medium   |
+| Hot Standby  | Running, data synchronized, ready to serve | Seconds            | Highest  |
+
+
+1️⃣ Cold Standby
+➤ Cold standby is cheapest but slowest.
+➤ The backup server is not running, so failover requires booting the machine, starting services, and potentially restoring data.
+➤ This might take 5-15 minutes, which is too slow for most production systems but acceptable for disaster recovery.
+
+
+2️⃣ Warm Standby
+➤ Warm standby keeps the backup running and configured, but not actively processing requests.
+➤ It might be receiving replicated data but is not in the load balancer pool.
+➤ Failover involves adding it to the pool and possibly promoting it, which takes seconds to a few minutes.
+
+
+3️⃣ Hot Standby
+➤ Hot standby is the most expensive but fastest.
+➤ The backup is fully synchronized and ready to serve immediately.
+➤ For databases, this often means synchronous replication where every write is confirmed on both primary and standby before acknowledging the client.
+
+
+2️⃣ Active-Active
+➤ In an active-active configuration, all components handle traffic simultaneously.
+➤ There is no distinction between primary and backup because every node is doing real work.
+
+                     Traffic
+                        |
+                        v
+                +----------------+
+                |  Load Balancer |
+                +----------------+
+                        |
+        ------------------------------------------------
+        |                    |                         |
++-------------------+ +-------------------+ +-------------------+
+|    Server 1       | |    Server 2       | |    Server 3       |
+|     ACTIVE        | |     ACTIVE        | |     ACTIVE        |
++-------------------+ +-------------------+ +-------------------+
+
+➤ When one node fails, the load balancer simply stops sending traffic to it.
+➤ There is no failover process because the other nodes were already handling traffic.
+➤ The remaining nodes absorb the additional load.
+
+
+🔄 Pros
+1️⃣ No failover delay
+2️⃣ All nodes tested under real load
+3️⃣ Better resource utilization
+
+
+🔄 Cons
+1️⃣ More complex
+2️⃣ Must handle data consistency across nodes
+3️⃣ equires stateless design or shared state
+
+➤ The key requirement for active-active is that requests can be handled by any node.
+➤ This works naturally for stateless services where each request is independent.
+➤ For stateful services, you need either shared storage (like a database or Redis) or sticky sessions (which reduces availability benefits).
+
+
+3️⃣ Geographic Redundancy
+Redundancy within a single data center protects against hardware failures, but what if the entire data center goes offline? Power outages, network cuts, natural disasters, or even a backhoe cutting a fiber line can take down an entire facility.
+
+Geographic redundancy distributes your system across multiple physical locations:
+
+                                   +---------+
+                                   |  Users  |
+                                   +---------+
+                                        |
+                                        v
+                +-------------------------------------------+
+                |   Global DNS (Route53 / CloudFlare)       |
+                +-------------------------------------------+
+                      |                 |                |
+                   US East            US West           Europe
+                      |                 |                |
+   --------------------------------------------------------------------------------
+   |                              |                               |               |
+   |  +----------------------+    |  +----------------------+    |  +----------------------+
+   |  | Availability Zone 1  |    |  | Availability Zone 2  |    |  | Availability Zone 3  |
+   |  |     US East          |    |  |     US West          |    |  |      Europe          |
+   |  |                      |    |  |                      |    |  |                      |
+   |  |  +--------------+   |    |  |  +--------------+   |    |  |  +--------------+   |
+   |  |  | Load Balancer|   |    |  |  | Load Balancer|   |    |  |  | Load Balancer|   |
+   |  |  +--------------+   |    |  |  +--------------+   |    |  |  +--------------+   |
+   |  |          |           |    |  |          |           |    |  |          |           |
+   |  |          v           |    |  |          v           |    |  |          v           |
+   |  |   +--------------+  |    |  |   +--------------+  |    |  |   +--------------+  |
+   |  |   | App Servers  |  |    |  |   | App Servers  |  |    |  |   | App Servers  |  |
+   |  |   +--------------+  |    |  |   +--------------+  |    |  |   +--------------+  |
+   |  |          |           |    |  |          |           |    |  |          |           |
+   |  |          v           |    |  |          v           |    |  |          v           |
+   |  |     +-----------+   |    |  |     +-----------+   |    |  |     +-----------+   |
+   |  |     | Database  |   |    |  |     | Database  |   |    |  |     | Database  |   |
+   |  |     +-----------+   |    |  |     +-----------+   |    |  |     +-----------+   |
+   |  |          |           |    |  |          |           |    |  |          |           |
+   |  |          +-----------+----+--+----------+-----------+----+--+----------+           |
+   |  |                 Cross-Region Database Replication                                  |
+   |  ---------------------------------------------------------------------------------------
+
+Cloud providers offer different levels of geographic redundancy:
+| Level                    | What It Is                                                               | Protects Against                    | Latency Impact         |
+| ---------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- | -------------------------- |
+| Availability Zones (AZs) | Separate data centers within the same region, connected by low-latency links | Single data center failure              | Minimal (≈ 1–2 ms)         |
+| Regions                  | Geographically separate areas (e.g., US-East vs US-West)                     | Regional disasters, large-scale outages | Significant (≈ 50–100 ms+) |
+| Multi-Cloud              | Infrastructure spread across different cloud providers (e.g., AWS + GCP)     | Cloud provider-wide outages             | Variable                   |
+
+
+➤ Availability Zones are the sweet spot for most applications.
+➤ They provide meaningful isolation (separate power, cooling, and network) while keeping latency low enough for synchronous replication.
+➤ Most cloud-native applications deploy across at least two AZs.
+
+
+➤ Multi-region deployment is necessary for global applications or those requiring disaster recovery from regional events.
+➤ The challenge is data replication, since synchronous replication across regions adds significant latency.
+➤ Most multi-region systems use asynchronous replication and accept some data loss in a disaster (typically seconds to minutes of transactions)
+
+
+🔄 Redundancy Across Layers
+➤ A chain is only as strong as its weakest link.
+➤ If you have redundant app servers but a single database, the database is your single point of failure.
+➤ True high availability requires redundancy at every layer of your stack.
+
++-------------------+            +-------------------+
+|      User 1       |            |      User 2       |
++-------------------+            +-------------------+
+          |                                 |
+          v                                 v
+--------------------------------------------------------------------------------
+|                                    DNS                                      |
+|                                                                              |
+|        +-------------------+                 +-------------------+           |
+|        |   DNS Server 1    |                 |   DNS Server 2    |           |
+|        +-------------------+                 +-------------------+           |
+--------------------------------------------------------------------------------
+          |                                 |
+          v                                 v
+--------------------------------------------------------------------------------
+|                               Load Balancers                                 |
+|                                                                              |
+|        +-------------------+                 +-------------------+           |
+|        | Load Balancer 1   |                 | Load Balancer 2   |           |
+|        +-------------------+                 +-------------------+           |
+--------------------------------------------------------------------------------
+             |              \                     /              |
+             |               \                   /               |
+             v                v                 v                v
+--------------------------------------------------------------------------------
+|                                 App Servers                                  |
+|                                                                              |
+|     +-----------+          +-----------+          +-----------+              |
+|     |   App 1   |          |   App 2   |          |   App 3   |              |
+|     +-----------+          +-----------+          +-----------+              |
+--------------------------------------------------------------------------------
+              \                  |                  /
+               \                 |                 /
+                v                v                v
+--------------------------------------------------------------------------------
+|                                   Database                                   |
+|                                                                              |
+|                        +-------------------------+                           |
+|                        |       Primary DB        |                           |
+|                        +-------------------------+                           |
+|                                     |                                        |
+|                                     v                                        |
+|                        +-------------------------+                           |
+|                        |       Replica DB        |                           |
+|                        +-------------------------+                           |
+--------------------------------------------------------------------------------
+
+👉 Notice that redundancy gets harder as you move down the stack.
+👉 Adding more web servers is trivial.
+👉 Adding database replicas with automatic failover requires careful engineering.
+
+
+⚡ Note: Redundancy is not free. Every backup server, every replica, every additional availability zone costs money. The question is whether that cost is justified by the reduction in downtime risk.
+
+
+🔄 High Availability Patterns
+Patterns are reusable solutions to common problems. The following patterns appear repeatedly in highly available systems.
+
+Pattern 1️⃣: Load Balancer with Multiple Backends
+➤ The most common and fundamental pattern for stateless services.
+➤ A load balancer distributes traffic across multiple servers, automatically routing around failures.
+
+                +---------+
+                |  Users  |
+                +---------+
+                     |
+                     v
+              +----------------+
+              | Load Balancer  |
+              +----------------+
+                 |      |      |
+        Health Check   Health Check   Health Check
+                 |      |      |
+              +------+ +------+ +------+
+              |Srv 1 | |Srv 2 | |Srv 3 |
+              +------+ +------+ +------+
+
+
+❓ How it provides high availability:
+✔️ Load balancer continuously monitors backend health
+✔️ Failed servers are automatically removed from rotation
+✔️ Traffic redistributes to healthy servers within seconds
+✔️ New servers can be added without any downtime
+
+
+🔄 Load Balancer Redundancy
+The load balancer itself is a single point of failure. For true high availability, you need redundant load balancers:
+
+                   +---------+
+                   |  Users  |
+                   +---------+
+                        |
+                        v
+                   +---------+
+                   |   DNS   |
+                   +---------+
+                        |
+                        v
+                  +----------------+
+                  |   Virtual IP   |
+                  +----------------+
+                        |
+          -----------------------------------
+          |                                 |
++----------------------+       +----------------------+
+|  Load Balancer 1     |       |  Load Balancer 2     |
+|      ACTIVE          |       |      STANDBY         |
++----------------------+       +----------------------+
+           |
+           v
+    -------------------------
+    |                       |
++-----------+         +-----------+
+| Server 1  |         | Server 2  |
++-----------+         +-----------+
+
+➤ Cloud providers handle this automatically. AWS ALB, Google Cloud Load Balancer, and Azure Load Balancer are all managed services with built-in redundancy.
+➤ On-premises, you might use keepalived with a virtual IP that floats between two HAProxy instances.
+
+
+Pattern 2️⃣: Database Replication with Automatic Failover
+Databases are stateful and cannot simply be load-balanced like web servers. Database high availability requires replication and careful failover management.
+
+                               +------------------+
+                               |   Application    |
+                               +------------------+
+                                         |
+                                         v
+                         +--------------------------------+
+                         |          Primary DB            |
+                         |        (Reads + Writes)        |
+                         +--------------------------------+
+                              |            |            |
+                     Sync Replication   Async Replication   Async Replication
+                              |            |            |
+                              v            v            v
+              +-------------------------+  +----------------------+  +----------------------+
+              |     Sync Replica        |  |     Async Replica    |  |     Async Replica    |
+              |   (Failover Target)     |  |    (Read Scaling)    |  |     (Analytics)      |
+              +-------------------------+  +----------------------+  +----------------------+
+
+                                         ▲
+                                         |
+                          +--------------------------------+
+                          |        Failover Monitor        |
+                          |   (Patroni / Orchestrator)    |
+                          +--------------------------------+
+                          |  - Health checks               |
+                          |  - Leader election             |
+                          |  - Automatic failover          |
+                          +--------------------------------+
+
+
+Synchronous vs Asynchronous Replication
+| Type             | How It Works                                         | Data Loss                 | Performance Impact             |
+| -------------------- | -------------------------------------------------------- | ----------------------------- | ---------------------------------- |
+| Synchronous      | Write is confirmed only after replica acknowledges       | Zero (RPO = 0)                | Higher latency (waits for replica) |
+| Asynchronous     | Write is confirmed immediately; replica catches up later | Possible (seconds to minutes) | No impact on write latency         |
+| Semi-synchronous | Waits for at least one replica; others are async         | Minimal                       | Moderate impact                    |
+
+
+➤ Synchronous replication guarantees zero data loss but adds latency.
+➤ Every write must wait for the replica to confirm.
+➤ If your replica is in a different region, this adds significant latency (50-100ms per write).
+
+➤ Asynchronous replication has no performance impact but can lose data.
+➤ If the primary fails, any writes not yet replicated are lost.
+➤ The "replication lag" is typically seconds but can grow during high load.
+
+Most production systems use synchronous replication for the failover target and asynchronous replication for read replicas and analytics.
+
+
+Pattern 3️⃣: Queue-Based Load Leveling
+When downstream services cannot handle peak load, use a queue to buffer requests and process them at a sustainable rate.
+
++-------------------+
+|   Web Servers     |
++-------------------+
+          |
+          v
++--------------------------------+
+|        Message Queue           |
+|   (Kafka / Amazon SQS)         |
++--------------------------------+
+      |            |            |
+      v            v            v
++-----------+  +-----------+  +-----------+
+|  Worker 1 |  |  Worker 2 |  |  Worker 3 |
++-----------+  +-----------+  +-----------+
+      \            |            /
+       \           |           /
+        v          v          v
+               +-----------+
+               | Database  |
+               +-----------+
+
+
+❓ How it provides high availability:
+✔️ Decouples producers from consumers
+✔️ Buffers traffic spikes that would overwhelm the database
+✔️ Workers can fail and restart without losing messages
+✔️ Can scale workers independently based on queue depth
+
+This pattern is essential for handling bursty traffic. A flash sale might generate 100x normal traffic for a few minutes. Without a queue, the database would be overwhelmed. With a queue, orders accumulate and are processed at a sustainable rate.
+
+
+Pattern 4️⃣: Circuit Breaker
+➤ When a dependency fails, continuing to call it wastes resources and can cause cascading failures.
+➤ The circuit breaker pattern prevents this by failing fast.
+
+                +----------------------+
+                |        Start         |
+                +----------------------+
+                           |
+                           v
+                +----------------------+
+                |        Closed        |
+                |   Normal operation  |
+                | Requests pass       |
+                | through             |
+                +----------------------+
+                           |
+           Failures exceed threshold
+                           |
+                           v
+                +----------------------+
+                |         Open         |
+                |     Failing fast     |
+                | Requests rejected   |
+                | immediately         |
+                +----------------------+
+                           |
+                    Timeout expires
+                           |
+                           v
+                +----------------------+
+                |       Half-Open      |
+                |   Testing recovery  |
+                | Limited requests    |
+                | allowed             |
+                +----------------------+
+                    |             |
+      Test request succeeds   Test request fails
+                    |             |
+                    v             v
+        +------------------+   +----------------------+
+        |      Closed      |   |         Open         |
+        | Normal operation |   |   Failing fast       |
+        | Requests pass    |   | Requests rejected    |
+        | through          |   | immediately          |
+        +------------------+   +----------------------+
+
+
+| State     | Behavior                                                      | Transitions                                               |
+| ------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| Closed    | Normal operation. All requests pass through. Tracks failure rate. | → Open: when failure rate exceeds threshold               |
+| Open      | Fail fast. All requests are immediately rejected with error.      | → Half-Open: after timeout period                         |
+| Half-Open | Testing state. Allows limited requests through.                   | → Closed: if test succeeds <br> → Open: if test fails |
+
+➤ A highly available system stays up even when components fail. But availability alone is not enough.
+➤ A system that is always up but sometimes gives wrong answers is not trustworthy.
+
+
+================
+🔷 Reliability
+=================
+➤ A reliable system performs its intended function correctly and consistently, even in the face of faults.
+➤ While availability asks "Is the system up?", reliability asks "Is the system doing what it should?"
+
+✅ For Example: The distinction matters. Consider a payment system that is always available but occasionally charges customers twice. Or a messaging app that delivers messages out of order.
+👉 These systems are available, but they are not reliable. And unreliable systems destroy user trust faster than unavailable ones.
+
+➤ Reliability is the probability that a system will perform its intended function correctly over a given period of time, under specified conditions.
+
+This definition has several important parts.
+1️⃣ "Correctly" means producing the right output, not just any output.
+2️⃣ "Over a given period" means reliability is measured over time, not at a single instant.
+3️⃣ "Under specified conditions" means we define what normal operation looks like.
+👉 An available system responds. A reliable system responds correctly. You want both, but they are distinct properties.
+
+
+🔄 Reliability vs Related Concepts
+People often confuse reliability with availability and fault tolerance. Here is how they differ:
+
+| Concept         | Question It Answers                    | Example                          |
+| ------------------- | ------------------------------------------ | ------------------------------------ |
+| Availability    | Is the system responding?                  | System returns HTTP 200              |
+| Reliability     | Is the response correct?                   | The balance returned is accurate     |
+| Fault Tolerance | Does it keep working when components fail? | Works with one database replica down |
+| Durability      | Is data preserved despite failures?        | Data survives disk failure           |
+
+➤ A payment system that charges customers twice is available (it processes requests) but unreliable (it processes them incorrectly).
+➤ A database that loses writes during failover is fault-tolerant (it continues operating) but not durable (data was lost).
+
+⚡Note: These properties are related but independent. You can optimize for one while accidentally sacrificing another.
+👉 A system that aggressively caches data for availability might serve stale (incorrect) responses, trading reliability for uptime.
+
+
+🔄 Measuring Reliability
+You cannot improve what you do not measure. Reliability has several well-established metrics that help you understand how your system behaves over time.
+
+1️⃣ Mean Time Between Failures (MTBF)
+MTBF measures the average time between failures. A higher MTBF means failures are less frequent.
+
+MTBF = Total Operating Time / Number of Failures
+
+✅ Example:
+  - System ran for 10,000 hours
+  - Experienced 5 failures
+  - MTBF = 10,000 / 5 = 2,000 hours
+
+➤ An MTBF of 2,000 hours means you can expect one failure roughly every 83 days. This helps with planning.
+➤ If you have 100 servers each with MTBF of 2,000 hours, you will see approximately one server failure per day across your fleet.
+
+
+2️⃣ Mean Time To Recovery (MTTR)
+MTTR measures how long it takes to restore the system after a failure. A lower MTTR means faster recovery.
+
+MTTR = Total Downtime / Number of Failures
+✅ Example:
+  - 5 failures occurred
+  - Total repair time: 10 hours
+  - MTTR = 10 / 5 = 2 hours per failure
+
+➤ MTTR includes detection time, diagnosis time, repair time, and verification time.
+➤ Reducing MTTR often has more impact than reducing failure rate. If you cannot prevent failures, at least recover quickly.
+
+
+3️⃣ Error Rate
+Percentage of requests that result in errors.
+
+Error Rate = Failed Requests / Total Requests × 100%
+
+| System Type      | Target Error Rate | Meaning                |
+| -------------------- | --------------------- | -------------------------- |
+| Critical systems | < 0.01%               | 1 in 10,000 requests fails |
+| Standard systems | < 0.1%                | 1 in 1,000 requests fails  |
+| Tolerant systems | < 1%                  | 1 in 100 requests fails    |
+
+
+4️⃣ Data Correctness
+Percentage of responses that contain correct data.
+
+Correctness = Correct Responses / Total Responses × 100%
+
+➤ This is the often-overlooked metric. A system can have 99.99% availability and 0.01% error rate, but if 1% of successful responses contain wrong data, you have a reliability problem.
+➤ Users received a response, it just was not the right one.
+
+
+❓ Why Systems Become Unreliable
+Reliability failures come from multiple sources.
+
+1️⃣ Hardware Failures
+➤ Physical components wear out and fail.
+➤ Disks develop bad sectors. Memory corrupts. CPUs overheat. Network cards malfunction.
+
+➤ The good news is that hardware failures are well-understood and follow predictable statistical patterns.
+➤ The bad news is that with enough hardware, failures become a daily occurrence.
+
+
+2️⃣ Software Bugs
+➤ Software bugs are the leading cause of reliability problems. Unlike hardware failures, which tend to be random and independent, software bugs are systematic. Every request that hits the buggy code path fails.
+➤ The most dangerous bugs are those that do not crash the system but silently produce wrong results.
+
+
+3️⃣ Configuration Errors
+➤ Configuration mistakes are surprisingly common and often catastrophic.
+➤ A typo in a configuration file can bring down an entire service.
+
+
+4️⃣ Human Error
+➤ Studies show that human error is the leading cause of outages.
+➤ Operators mistype commands. Engineers deploy untested changes. On-call responders misdiagnose problems.
+
+
+5️⃣ Overload and Cascading Failures
+➤ Systems that work perfectly under normal load can fail catastrophically when overloaded.
+➤ When one component slows down, requests queue up, timeouts fire, retries multiply the load, and the problem cascades.
+
+
+🔄 Key Principles of Reliable Systems
+To build reliable systems, engineers typically focus on several core principles:
+
+1️⃣ Redundancy
+➤ Redundancy means having backup components ready to take over if one part fails.
+➤ This could involve multiple servers, duplicate network paths, or backup databases.
+
+
+2️⃣ Failover Mechanisms
+➤ Failover is the process by which a system automatically switches to a redundant or standby component when a failure is detected.
+➤ This ensures continuous operation without noticeable disruption to users.
+
+
+3️⃣ Load Balancing
+➤ Load balancing distributes incoming traffic across multiple servers.
+➤ This not only improves performance but also prevents any single server from becoming a single point of failure.
+
+
+4️⃣ Monitoring and Alerting
+➤ A reliable system is constantly monitored.
+➤ Tools and dashboards track system health and performance, while alerting mechanisms notify engineers of issues before they escalate into major problems.
+
+
+5️⃣ Graceful Degradation
+Even when parts of the system fail, a well-designed system can still provide core functionality rather than going completely offline. This concept is known as graceful degradation.
+
+
+🔄 Techniques to Enhance Reliability
+Now that we understand the principles, let’s look at some practical techniques to implement reliability in your systems.
+
+1️⃣ Redundant Architectures
+The most fundamental reliability technique is having more components than you need. If one fails, others continue operating.
+
+                +---------+
+                |  Users  |
+                +---------+
+                     |
+                     v
+              +----------------+
+              | Load Balancer  |
+              +----------------+
+                 |      |      |
+        +-----------+ +-----------+ +-----------+
+        | Server A  | | Server B  | | Server C  |
+        |  ACTIVE   | |  ACTIVE   | |  ACTIVE   |
+        +-----------+ +-----------+ +-----------+
+
+
+✅ For example: if you have a web server handling user requests, deploy several servers behind a load balancer:
+➤ If one server fails, the load balancer automatically routes traffic to the remaining servers.
+
+
+2️⃣ Data Replication
+Ensure your data is not stored in a single location. Use data replication strategies across multiple databases or data centers.
+
+                +----------------+
+                |  Application   |
+                +----------------+
+                         |
+                         v
+                +----------------+
+                |   Primary DB   |
+                | (Read/Write)   |
+                +----------------+
+                     |
+          -----------------------------
+          |                           |
+          v                           v
+   +---------------+         +---------------+
+   | Replica DB 1  |         | Replica DB 2  |
+   |  (Read Only)  |         |  (Read Only)  |
+   +---------------+         +---------------+
+👉 This way, if one database fails, the system can still access a copy from another location.
+
+
+3️⃣ Graceful Degradation
+➤ When parts of the system fail, graceful degradation keeps the core functionality working.
+➤ Instead of complete failure, the system provides reduced service.
+
+                     +----------------------+
+                     |   Full Service       |
+                     | All features         |
+                     | available            |
+                     +----------------------+
+                               |
+                         Load increases
+                               |
+                               v
+                     +----------------------+
+                     |   Partial Service    |
+                     | Non-critical         |
+                     | features disabled    |
+                     +----------------------+
+                               |
+                       Components fail
+                               |
+                               v
+                     +----------------------+
+                     |     Core Only        |
+                     | Only essential       |
+                     | functions            |
+                     +----------------------+
+                               |
+                        Critical failure
+                               |
+                               v
+                     +----------------------+
+                     |   Emergency Mode     |
+                     | Minimal              |
+                     | functionality        |
+                     +----------------------+
+
+Consider an e-commerce site:
+1️⃣ Full service ─────────▶ Personalized recommendations, real-time inventory, all payment options
+2️⃣ Partial service ─────────▶ Generic recommendations, cached inventory, primary payment options
+3️⃣ Core only ─────────▶ Browse products, checkout with basic payment
+4️⃣ Emergency mode ─────────▶ Display cached product pages, accept orders for later processing
+
+
+4️⃣ Circuit Breakers
+➤ In a microservices architecture, one service failing can cascade failures throughout the system.
+➤ Circuit breakers detect when a service is failing and temporarily cut off requests to prevent overload, allowing the system to recover gracefully.
+
+                +----------------------+
+                |        Start         |
+                +----------------------+
+                           |
+                           v
+                +----------------------+
+                |        Closed        |
+                | Normal operation    |
+                | Requests pass       |
+                | through             |
+                +----------------------+
+                           |
+           Failures exceed threshold
+                           |
+                           v
+                +----------------------+
+                |         Open         |
+                |     Failing fast     |
+                | Requests rejected   |
+                | immediately         |
+                +----------------------+
+                           |
+                    Timeout expires
+                           |
+                           v
+                +----------------------+
+                |       Half-Open      |
+                |   Testing recovery  |
+                | Limited requests    |
+                | allowed             |
+                +----------------------+
+                    |             |
+      Test request succeeds   Test request fails
+                    |             |
+                    v             v
+        +------------------+   +----------------------+
+        |      Closed      |   |         Open         |
+        | Normal operation |   |   Failing fast       |
+        | Requests pass    |   | Requests rejected    |
+        | through          |   | immediately          |
+        +------------------+   +----------------------+
+
+➤ In the closed state, requests pass through normally. Failures are counted. When failures exceed a threshold (e.g., 5 failures in 30 seconds), the circuit opens.
+
+➤ In the open state, requests fail immediately without calling the dependency. This prevents wasting resources and allows the dependency time to recover.
+
+➤ After a timeout (e.g., 30 seconds), the circuit moves to half-open. A limited number of test requests are allowed through. If they succeed, the circuit closes. If they fail, it opens again.
+
+
+5️⃣ Idempotency
+Network failures make it unclear whether a request succeeded or failed. If you retry, you might execute the operation twice. Idempotent operations produce the same result regardless of how many times they are executed.
+
+WITHOUT IDEMPOTENCY                          WITH IDEMPOTENCY
+--------------------                         --------------------
+
+Client                                      Client
+  |                                           |
+  | Transfer $100 (ID: abc123)                | Transfer $100 (ID: abc123)
+  v                                           v
+Server                                      Server
+  |                                           |
+  | Insert transfer abc123                    | Insert transfer abc123
+  v                                           v
+Database                                    Database
+  |                                           |
+  | (Row inserted)                            | (Row inserted with ID)
+  |                                           |
+  | Response lost ❌                          | Response lost ❌
+  |                                           |
+Client retries                               Client retries
+  |                                           |
+  | Transfer $100 (ID: abc123) [retry]        | Transfer $100 (ID: abc123) [retry]
+  v                                           v
+Server                                      Server
+  |                                           |
+  | Insert transfer abc123 ❌                 | Insert transfer abc123
+  |                                           | → Already exists, ignore
+  v                                           v
+Database                                    Database
+  |                                           |
+  | $100 transferred AGAIN                    | Only $100 transferred
+  | ($200 total ❌)                           | ($200 avoided ✅)
+
+➤ The idempotency key (abc123) allows the server to detect retries.
+➤ The first execution stores the key. Subsequent executions with the same key return the stored result without re-executing.
+
+➤ Stripe, PayPal, and other payment processors require idempotency keys for money-moving operations.
+➤ Without them, network issues could cause duplicate charges.
+
+
+============================
+🔷 Single Point of Failure
+============================
