@@ -2791,3 +2791,364 @@ Database                                    Database
 ============================
 🔷 Single Point of Failure
 ============================
+A Single Point of Failure (SPOF) is a component in your system whose failure can bring down the entire system, causing downtime, potential data loss, and unhappy users.
+
+                +---------+
+                | Clients |
+                +---------+
+                     |
+                     v
+              +----------------+
+              | Load Balancer  |
+              |  (SPOF) ❌     |
+              +----------------+
+                 |      |      |
+        +-----------+ +-----------+ +-----------+
+        | Server 1  | | Server 2  | | Server 3  |
+        +-----------+ +-----------+ +-----------+
+
+              ❌ If Load Balancer fails
+              ❌ Clients cannot reach servers
+
+➤ In the above example, if there is only one instance of the load balancer, it becomes a SPOF.
+➤ If it goes down, clients won’t be able to communicate with the servers.
+➤ By minimizing the number of SPOFs, you can improve the overall reliability and availability of the system.
+
+
+1️⃣ Understanding SPOFs
+A Single Point of Failure (SPOF) is any component within a system whose failure would cause the entire system to stop functioning.
+
+✅ For Example ─────────▶ Imagine a bridge that connects two cities. If it's the only route between them and it collapses, the cities are cut off. In this scenario, the bridge is the single point of failure.
+
+➤ In distributed systems, failures are inevitable. Common causes include hardware malfunctions, software bugs, power outages, network disruptions, and human error.
+➤ While failures can't be entirely avoided, the goal is to ensure they don’t bring down the entire system.
+➤ In system design, SPOFs can include a single server, network link, database, or any component that lacks redundancy or backup.
+
+Let’s see an example of a system and various single points of failures in it:
+
++-----------+          +-----------+
+| Client 1  |          | Client 2  |
++-----------+          +-----------+
+        \                   /
+         \                 /
+          v               v
+              +----------------+
+              | Load Balancer  |
+              +----------------+
+                   |      |
+                   |      |
+           +---------------+   +---------------+
+           |  App Server 1 |   |  App Server 2 |
+           +---------------+   +---------------+
+                   |      |
+                   |      |
+           +------------------+
+           |   Redis Cache    |
+           +------------------+
+                   |
+                   v
+              +------------+
+              |  Database  |
+              +------------+
+
+This system has one load balancer, two application servers, one database, and one cache server.
+
+➤ Clients send requests to the load balancer, which distributes traffic across the two application servers.
+➤ The application servers retrieve data from the cache if it's available, or from the database if it's not.
+
+In this design, the potential SPOFs are:
+1️⃣ Load Balancer ─────────▶ If there is only one load balancer instance and it fails, all traffic will stop, preventing clients from reaching the application servers. To avoid this, we can add a standby load balancer that can takeover if the primary one fails.
+
+2️⃣ Database ─────────▶ With only one database, its failure would result in data being unavailable, causing downtime and potential data loss. We can avoid this by replicating the data across multiple servers and locations.
+
+3️⃣ Cache Server ─────────▶ The cache server is not a true SPOF in the sense that it doesn’t bring the entire system down. When it’s down, every request hits the database, increasing its load and slowing response times.
+The application servers are not SPOFs since you have two of them. If one fails, the other can still handle requests, assuming the load balancer can distribute traffic effectively.
+
+
+❓ How to Identify SPOFs in a Distributed System
+1️⃣  Map Out the Architecture
+➤ Create a detailed diagram of your system's architecture. Identify all components, services, and their dependencies.
+➤ Look for components that do not have backups or redundancy.
+
+
+2️⃣ Dependency Analysis
+➤ Analyze dependencies between different services and components.
+➤ If a single component is required by multiple services and does not have a backup, it is likely a SPOF.
+
+
+3️⃣ Failure Impact Assessment
+➤ Assess the impact of failure for each component.
+➤ Perform a "what if" analysis for each component.
+➤ Ask questions like, “What if this component fails?” If the answer is that the system would stop functioning or degrade significantly, then that component is a SPOF.
+
+
+4️⃣ Chaos Testing
+➤Chaos testing, also known as Chaos Engineering, is the practice of intentionally injecting failures and disruptions into a system to understand how it behaves under stress and to ensure it can recover gracefully.
+
+➤Chaos engineering often involves the use of tools like Chaos Monkey (developed by Netflix) that randomly shut down instances or services to observe how the rest of the system responds.
+
+➤This can help us identify components that, if they fail, would cause a significant impact on the system.
+ 
+
+
+🔄 Strategies to Avoid Single Points of Failures
+1️⃣ Redundancy
+➤ The most common way to avoid SPOFs is by adding redundancy. Redundancy means having multiple components that can take over if one fails.
+➤ Redundant components can be either active or passive. Active components are always running.
+➤ Passive (standby) components are only used as a backup when the active component fails.
+
+
+2️⃣ Load Balancing
+➤ Load balancers distribute incoming traffic across multiple servers, ensuring no single server becomes overwhelmed.
+➤ They help avoid single point of failures by detecting failed servers and rerouting traffic to healthy instances.
+➤ To prevent the single load balancer becoming a single point of failure, we can add a standby load balancer which can take over if the primary one fails.
+
+
+3️⃣ Data Replication
+Data replication involves copying data from one location to another to ensure that data is available even if one location fails.
+
+1️⃣ Synchronous Replication ─────────▶ Data is replicated in real-time to ensure consistency across locations.
+2️⃣ Asynchronous Replication ─────────▶ Data is replicated with a delay, 
+which can be more efficient but may result in slight data inconsistencies.
+
+
+4️⃣ Geographic Distribution
+Distributing services and data across multiple geographic locations mitigates the risk of regional failures.
+
+This includes using:
+1️⃣ Content Delivery Networks (CDNs) to distribute content globally, improving availability and reducing latency.
+2️⃣ Multi-Region Cloud Deployments to ensure that an outage in one region does not disrupt your entire application.
+
+
+5️⃣ Graceful Handling of Failures
+Design applications to handle failures without crashing.
+
+✅ Example ─────────▶ If a service that provides user recommendations fails, the application should still function, perhaps with a message indicating limited features temporarily.
+
+👉 Implement failover mechanisms to automatically switch to backup systems when failures are detected.
+
+
+6️⃣ Monitoring and Alerting
+Proactive monitoring helps detect failures before they lead to major outages.
+
+Key practices include:
+1️⃣ Health Checks ─────────▶ Automated tools that perform regular health checks on components.
+2️⃣ Automated Alerts ─────────▶ Alerts and notifications sent when a component fails or behaves abnormally.
+3️⃣ Self-Healing Systems ─────────▶ Systems that automatically recover from failures, such as auto-scaling to replace failed servers.
+
+
+=======================================
+🔷 Latency vs Throughput vs Bandwidth
+========================================
+Understanding these metrics is crucial for:
+1️⃣ Diagnosing performance bottlenecks
+2️⃣ Making informed architectural decisions
+3️⃣ Setting realistic expectations with stakeholders
+4️⃣ Answering system design interview questions
+
+
+🔄 The Highway Analogy
+Before diving into definitions, let us use a simple analogy. Think of a highway connecting two cities:
+
+                   City A
+                     |
+                     v
+        =================================================
+        ||  Lane 1  ||  Lane 2  ||  Lane 3  ||  Lane 4 ||
+        || (Car)    || (Car)    || (Car)    || (Car)   ||
+        =================================================
+                     🚧 Accident / Traffic Jam
+                     ↓ (Only few cars pass)
+        -------------------------------------------------
+                     |
+                     v
+                   City B
+
+
+1️⃣ Bandwidth is the number of lanes on the highway. More lanes mean more cars can travel simultaneously.
+2️⃣ Throughput is how many cars actually pass through per hour. This depends on traffic conditions, not just the number of lanes.
+3️⃣ Latency is the time it takes for a single car to travel from one city to the other.
+
+A highway might have 4 lanes (high bandwidth), but if there is an accident, only 100 cars per hour pass through (low throughput). Meanwhile, each car might take 2 hours to complete the journey (high latency).
+
+This analogy helps explain why these metrics do not always move together.
+
+
+1️⃣ Latency
+Latency is the time it takes for a single request to travel from source to destination and back. It measures delay.
+
+In networking, latency is often called round-trip time (RTT), the time from sending a request to receiving a response.
+
+🔄 Round-Trip Time Block Diagram
+Client                                   Server
+  |                                        |
+  |---- Request (t = 0 ms) --------------->|
+  |                                        |
+  |            Processing (50 ms)          |
+  |                                        |
+  |<--- Response (t = 150 ms) --------------|
+  |                                        |
+
+
+⏱️ Latency Breakdown
+Client → Server   : 50 ms  (Network delay)
+Server Processing : 50 ms
+Server → Client   : 50 ms  (Network delay)
+------------------------------------------
+Total Latency     : 150 ms (Round-Trip Time)
+
+
+Components of Latency
+Latency is not a single value. It is the sum of multiple delays:
+
+Client → Network Latency → Server Processing → Database Query → Response Assembly → Network Latency → Client
+
+
+1️⃣ Propagation delay ─────────▶ Time for signals to travel through the medium. Light in fiber travels at ~200,000 km/s. A cross-Atlantic request (6,000 km) takes ~30ms just for propagation.
+2️⃣ Transmission delay ─────────▶ Time to push bits onto the wire. Depends on packet size and link bandwidth.
+2️⃣ Processing delay ─────────▶ Time for routers, load balancers, and servers to process packets.
+4️⃣ Queuing delay ─────────▶ Time spent waiting in buffers when components are busy.
+
+
+🔄 Measuring Latency
+Latency is typically measured using percentiles:
+| Metric       | Description                                  |
+| -------------| -------------------------------------------- |
+| p50 (Median) | 50% of requests are faster than this value   |
+| p95          | 95% of requests are faster than this value   |
+| p99          | 99% of requests are faster than this value   |
+| p99.9        | 99.9% of requests are faster than this value |
+
+❓ Why percentiles matter: Average latency hides outliers. A system with 10ms average might have p99 of 500ms, meaning 1% of users experience terrible performance.
+
+What Affects Latency?
+| Factor              | Impact                                                 |
+| ----------------------- | ---------------------------------------------------------- |
+| Geographic distance | More distance = higher propagation delay                   |
+| Network congestion  | Causes queuing delays and packet retransmissions           |
+| Server load         | High load increases request processing time                |
+| Database queries    | Slow or unoptimized queries add significant latency        |
+| DNS resolution      | Cold requests require DNS lookup, adding delay             |
+| TLS handshake       | Adds 1–2 extra network round trips during connection setup |
+
+
+🔄 Reducing Latency
+1️⃣ Use CDNs ─────────▶ Serve content from edge locations closer to users
+2️⃣ Caching ─────────▶ Eliminate round trips by caching at multiple layers
+3️⃣ Connection pooling ─────────▶ Avoid repeated connection setup
+4️⃣ Database optimization ─────────▶ Add indexes, optimize queries
+5️⃣ Geographic distribution ─────────▶ Deploy servers closer to users
+6️⃣ Protocol optimization ─────────▶ Use HTTP/2, HTTP/3 (QUIC)
+
+
+2️⃣ Throughput
+Throughput is the amount of work completed per unit of time. It measures volume.
+
+For web systems, throughput is often expressed as requests per second (RPS) or transactions per second (TPS).
+
+Incoming Requests
+   |
+   |   Req 1   Req 2   Req 3   Req 4   Req 5
+   v
++---------------------------------------------+
+|                 Server                      |
+|             Processing Capacity             |
+|                1000 RPS                     |
++---------------------------------------------+
+   |
+   |   Resp 1  Resp 2  Resp 3  Resp 4  Resp 5
+   v
+Completed Responses
+
+
+🔄 Throughput vs Bandwidth
+A common confusion ─────────▶ bandwidth is theoretical maximum capacity, while throughput is actual achieved rate.
+| Metric     | Definition                                        | Example              |
+| -------------- | ----------------------------------------------------- | ------------------------ |
+| Bandwidth  | Maximum possible data transfer rate of a network      | 1 Gbps network link      |
+| Throughput | Actual data transfer rate achieved in real conditions | 600 Mbps actual transfer |
+
+
+You can never have throughput higher than bandwidth, but throughput is almost always lower due to:
+1️⃣ Protocol overhead (headers, acknowledgments)
+2️⃣ Congestion and packet loss
+3️⃣ Processing limitations
+4️⃣ Inefficient resource utilization
+
+
+🔄 Calculating Throughput
+1️⃣ For a single-threaded system:
+Throughput = 1 / Latency
+
+If latency = 10ms:
+Throughput = 1 / 0.01s = 100 requests/second
+
+
+2️⃣ For a multi-threaded system:
+Throughput = Concurrent Workers / Latency
+
+If latency = 10ms and 50 workers:
+Throughput = 50 / 0.01s = 5,000 requests/second
+
+
+❓ What Limits Throughput?
+                         +----------------------+
+                         |   Throughput Limiter |
+                         +----------------------+
+                                     |
+        ----------------------------------------------------------------
+        |              |                |               |             |
+        v              v                v               v             v
++---------------+ +---------------+ +---------------+ +---------------+ +---------------+
+|      CPU      | |    Memory     | |      I/O      | |  Connections  | |  Contention   |
+| Compute-bound | | Large working | | Disk / Network| | Connection    | | Locks, shared |
+| tasks         | | sets          | |               | | limits        | | resources     |
++---------------+ +---------------+ +---------------+ +---------------+ +---------------+
+
+The bottleneck determines maximum throughput. A system is only as fast as its slowest component.
+
+🔄 Improving Throughput
+1️⃣ Horizontal scaling ─────────▶ Add more servers
+2️⃣ Vertical scaling ─────────▶ Add more CPU, memory
+3️⃣ Async processing ─────────▶ Do not block on slow operations
+4️⃣ Batching ─────────▶ Process multiple items together
+5️⃣ Caching ─────────▶ Reduce work by reusing results
+6️⃣ Connection pooling ─────────▶ Reuse expensive connections
+7️⃣ Load balancing ─────────▶ Distribute work evenly
+
+
+===============
+🔷 Bandwidth
+===============
+➤ Bandwidth is the maximum rate at which data can be transferred. It measures capacity.
+➤ Bandwidth is typically expressed in bits per second (bps): Kbps, Mbps, 
+
++------------------+        High-Capacity Link        +------------------+
+|     Sender       | ===============================> |    Receiver      |
+| (Client / App)   |        (Bandwidth)              | (Server / App)   |
++------------------+   e.g., 1 Gbps / 10 Gbps         +------------------+
+
+
+🔄 Types of Bandwidth
+| Type              | Description                   | Example        |
+| --------------------- | --------------------------------- | ------------------ |
+| Network bandwidth | Capacity of network links         | 1 Gbps Ethernet    |
+| Memory bandwidth  | Rate of data transfer to/from RAM | DDR4 ≈ 25 GB/s     |
+| Disk bandwidth    | Read/write speed of storage       | SSD ≈ 500 MB/s     |
+| Bus bandwidth     | Internal data transfer rate       | PCIe 4.0 ≈ 64 GB/s |
+
+
+🔄 Bandwidth-Delay Product
+An important concept that connects bandwidth and latency:
+Bandwidth-Delay Product (BDP) = Bandwidth × Latency
+
+BDP represents how much data can be "in flight" at any moment.
+✅ Example:
+Bandwidth: 1 Gbps = 125 MB/s
+Latency: 100ms (coast-to-coast US)
+BDP: 125 MB/s × 0.1s = 12.5 MB
+
+👉 This means 12.5 MB of data can be traveling through the pipe at any instant.
+👉 If your TCP window size is smaller than BDP, you will not fully utilize available bandwidth.
+
+
