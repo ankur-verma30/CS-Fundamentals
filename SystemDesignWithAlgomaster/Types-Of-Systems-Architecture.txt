@@ -1,0 +1,675 @@
+================================================================================
+        TYPES OF ARCHITECTURE SYSTEMS IN SYSTEM DESIGN
+================================================================================
+
+1.  Monolithic Architecture
+2.  Microservices Architecture
+3.  Service-Oriented Architecture (SOA)
+4.  Event-Driven Architecture (EDA)
+5.  Layered (N-Tier) Architecture
+6.  Client-Server Architecture
+7.  Serverless Architecture
+8.  Peer-to-Peer (P2P) Architecture
+9.  Hexagonal (Ports & Adapters) Architecture
+10. Lambda Architecture
+11. Kappa Architecture
+12. Master-Slave Architecture
+
+===========================
+1. MONOLITHIC ARCHITECTURE
+===========================
+A Monolithic Architecture is a software design pattern where the entire application is built as a single, unified unit. All components — UI, business logic, and data access — are tightly coupled and deployed together as one executable or deployable artifact.
+
+STRUCTURE:
+----------
+  [ Presentation Layer ]
+          |
+  [ Business Logic Layer ]
+          |
+  [ Data Access Layer ]
+          |
+  [ Single Database ]
+
+HOW IT WORKS:
+-------------
+All modules of the application share the same memory space and communicate through direct function/method calls. When one part is updated, the entire application must be rebuilt and redeployed.
+
+CHARACTERISTICS:
+----------------
+- Single codebase for all features
+- All components share the same process
+- Tightly coupled — changes in one area can affect others
+- One deployment unit
+
+ADVANTAGES:
+-----------
++ Simple to develop (especially at the beginning)
++ Easy to test end-to-end
++ Straightforward deployment (one artifact)
++ Low latency for internal calls (no network overhead)
++ Easier to debug with a single codebase
+
+DISADVANTAGES:
+--------------
+- Difficult to scale individual components
+- A bug in one module can crash the whole application
+- Long build and deployment times as the app grows
+- Technology lock-in (hard to use different languages/frameworks per module)
+- Hard to onboard new developers as the codebase becomes large
+
+WHEN TO USE:
+------------
+- Early-stage startups or MVPs (Minimum Viable Products)
+- Small teams or small-scale applications
+- When simplicity and speed of development matter more than scalability
+
+REAL-WORLD EXAMPLE:
+-------------------
+Early versions of Shopify, Stack Overflow, and many e-commerce sites began as monoliths.
+
+Example Scenario:
+  An online bookstore built as a monolith has modules for:
+  - User registration/login
+  - Book catalog and search
+  - Shopping cart and checkout
+  - Payment processing
+  - Order management
+  All packed into a single deployable WAR/JAR file.
+
+
+================================================================================
+2. MICROSERVICES ARCHITECTURE
+================================================================================
+Microservices Architecture decomposes an application into a collection of small, independent, loosely coupled services. Each service is responsible for a specific business capability and can be developed, deployed, and scaled independently.
+
+STRUCTURE:
+----------
+  [ API Gateway ]
+       |   |   |
+  [Service A] [Service B] [Service C]
+  (Users)     (Orders)    (Payments)
+       |           |           |
+   [DB-A]      [DB-B]       [DB-C]
+
+HOW IT WORKS:
+-------------
+Each microservice owns its own data and exposes APIs (typically REST or gRPC) for communication. Services communicate over a network, often through an API Gateway that acts as the single entry point for clients.
+
+CHARACTERISTICS:
+----------------
+- Each service is independently deployable
+- Each service has its own database (Database per Service pattern)
+- Services communicate via HTTP/REST, gRPC, or message queues
+- Organized around business capabilities
+
+ADVANTAGES:
+-----------
++ Independent deployment and scaling of each service
++ Technology flexibility (polyglot programming)
++ Fault isolation — a failure in one service doesn't crash the whole system
++ Easier to understand individual services
++ Enables continuous delivery and deployment
+
+DISADVANTAGES:
+--------------
+- Increased complexity in managing distributed systems
+- Network latency between service calls
+- Data consistency challenges (no distributed transactions)
+- Complex testing and debugging (distributed tracing needed)
+- Overhead of DevOps: containers, orchestration (Kubernetes), CI/CD pipelines
+
+WHEN TO USE:
+------------
+- Large, complex applications with multiple teams
+- When different parts of the app have different scaling needs
+- When you need high availability and fault tolerance
+
+REAL-WORLD EXAMPLE:
+-------------------
+Netflix decomposed its monolith into 500+ microservices. Amazon uses thousands of microservices — each team owns specific services (recommendations, checkout, reviews, etc.).
+
+Example Scenario:
+  An e-commerce platform split into:
+  - User Service (handles login, profiles)
+  - Product Service (catalog, search)
+  - Order Service (order placement, history)
+  - Payment Service (payment processing)
+  - Notification Service (emails, SMS)
+  Each service can be scaled independently. If orders spike, only the Order
+  Service scales up.
+
+
+================================================================================
+3. SERVICE-ORIENTED ARCHITECTURE (SOA)
+================================================================================
+SOA is an architectural pattern where software components (services) provide functionality to other components via a communication protocol over a network. Services are reusable, interoperable components that communicate through a centralized Enterprise Service Bus (ESB).
+
+STRUCTURE:
+----------
+  [Consumer Applications]
+          |
+   [ Enterprise Service Bus (ESB) ]
+     |          |          |
+[Service A] [Service B] [Service C]
+(HR System) (Finance)   (CRM)
+
+HOW IT WORKS:
+-------------
+Services publish their capabilities to a service registry. Consumers discover services via the ESB, which also handles message transformation, routing, protocol bridging, and orchestration.
+
+CHARACTERISTICS:
+----------------
+- Services communicate via the ESB (centralized middleware)
+- Services are coarse-grained (larger than microservices)
+- Uses formal contracts (WSDL, XML/SOAP)
+- Designed for enterprise-level integration
+
+ADVANTAGES:
+-----------
++ Promotes reusability of services across the enterprise
++ Enables integration of heterogeneous systems
++ Centralized governance and security
++ Platform and language independence
+
+DISADVANTAGES:
+--------------
+- ESB becomes a single point of failure and bottleneck
+- Heavy and complex protocols (SOAP, XML)
+- High cost of middleware (ESB products like MuleSoft, WebSphere)
+- Slower than microservices due to overhead
+- Tight coupling to the ESB
+
+DIFFERENCE FROM MICROSERVICES:
+-------------------------------
+- SOA uses a central ESB; Microservices use lightweight protocols (REST/gRPC)
+- SOA services are larger; Microservices are fine-grained
+- SOA focuses on enterprise integration; Microservices on independent deployment
+
+REAL-WORLD EXAMPLE:
+-------------------
+Large banks and insurance companies use SOA to integrate their HR system, finance system, and customer management systems. Example: A bank connects its loan origination system, credit scoring service, and customer database via ESB.
+
+
+================================================================================
+4. EVENT-DRIVEN ARCHITECTURE (EDA)
+================================================================================
+Event-Driven Architecture is a design pattern where the flow of the program is determined by events — actions or occurrences like a user clicking a button, a payment being processed, or a file being uploaded. Components communicate by emitting and consuming events asynchronously.
+
+STRUCTURE:
+----------
+  [ Producer / Publisher ]
+           |
+      [ Event Broker ]  (Kafka, RabbitMQ, AWS SNS/SQS)
+     |        |        |
+[Consumer A] [Consumer B] [Consumer C]
+
+HOW IT WORKS:
+-------------
+Producers publish events to an event broker (message queue or event stream). Consumers subscribe to events they are interested in and process them independently and asynchronously. The producer doesn't know about or wait for the consumers.
+
+KEY CONCEPTS:
+-------------
+- Event: A record of something that happened (e.g., "OrderPlaced", "PaymentFailed")
+- Producer: Service that generates the event
+- Consumer: Service that reacts to the event
+- Event Broker: Middleware that receives, stores, and distributes events (Kafka, RabbitMQ)
+- Topic/Queue: Channel through which events are distributed
+
+PATTERNS:
+---------
+1. Publish-Subscribe: Broadcast to multiple consumers
+2. Event Streaming: Ordered, replayable log of events (Kafka)
+3. Event Sourcing: Store state as a sequence of events
+4. CQRS (combined with EDA for read/write separation)
+
+#####################################
+CQRS Architectural Pattern ─────────▶ Refer to the CQRS-Architectural-Pattern.txt
+#####################################
+
+ADVANTAGES:
+-----------
++ Loose coupling between services
++ High scalability and responsiveness
++ Resilience — consumers can process events at their own pace
++ Easy to add new consumers without changing producers
++ Supports real-time processing
+
+DISADVANTAGES:
+--------------
+- Complex to debug (asynchronous flow is harder to trace)
+- Eventual consistency — not immediately consistent
+- Message ordering and duplicate handling are challenging
+- Steep learning curve for event-driven thinking
+
+REAL-WORLD EXAMPLE:
+-------------------
+Uber uses EDA for ride matching and notifications:
+- "RideRequested" event → triggers Driver Matching Service
+- "RideMatched" event → triggers Notification Service (SMS to rider)
+- "RideCompleted" event → triggers Billing Service
+
+Example Scenario:
+  An e-commerce system:
+  - User places order → "OrderPlaced" event emitted
+  - Inventory Service consumes it → reduces stock
+  - Email Service consumes it → sends confirmation email
+  - Analytics Service consumes it → updates dashboard
+  All this happens asynchronously without the Order Service waiting.
+
+
+================================================================================
+5. LAYERED (N-TIER) ARCHITECTURE
+================================================================================
+Layered Architecture organizes code into horizontal layers, where each layer has a specific responsibility and can only communicate with the layer directly below it. It's one of the most widely used patterns in traditional enterprise applications.
+
+COMMON LAYERS:
+--------------
+  ┌─────────────────────────────┐
+  │   Presentation Layer        │  (UI: HTML, React, Angular)
+  ├─────────────────────────────┤
+  │   Application/Service Layer │  (Business Logic, Use Cases)
+  ├─────────────────────────────┤
+  │   Domain Layer              │  (Core business rules, Entities)
+  ├─────────────────────────────┤
+  │   Data Access Layer (DAL)   │  (Repositories, ORM, SQL queries)
+  ├─────────────────────────────┤
+  │   Database Layer            │  (MySQL, PostgreSQL, MongoDB)
+  └─────────────────────────────┘
+
+HOW IT WORKS:
+-------------
+A user request flows from the Presentation Layer → Application Layer → Data Layer → Database, and the response travels back up. Each layer only depends on the layer below it.
+
+ADVANTAGES:
+-----------
++ Clear separation of concerns
++ Easy to maintain and test each layer independently
++ Widely understood pattern — easy to onboard developers
++ Good for simple to medium-complexity applications
+
+DISADVANTAGES:
+--------------
+- Can lead to "sinkhole" anti-pattern (requests pass through layers unnecessarily)
+- Changes in one layer can ripple upward
+- Not inherently scalable — usually deployed as a monolith
+
+REAL-WORLD EXAMPLE:
+-------------------
+Most traditional Java EE / Spring MVC applications:
+- Controller (Presentation) → Service (Business Logic) → Repository (Data Access) → DB
+
+
+================================================================================
+6. CLIENT-SERVER ARCHITECTURE
+================================================================================
+Client-Server Architecture is a distributed computing model where tasks are split between service providers (servers) and service requesters (clients). The client makes requests and the server processes them and returns responses.
+
+STRUCTURE:
+----------
+  [ Client ]  ← HTTP/TCP →  [ Server ]  ←→  [ Database ]
+  (Browser,                (Web/App
+   Mobile App)              Server)
+
+TYPES:
+------
+1. Two-Tier: Client directly communicates with the database server
+2. Three-Tier: Client → Application Server → Database Server (most common)
+3. Multi-Tier: Adds more layers (CDN, cache, load balancer)
+
+ADVANTAGES:
+-----------
++ Centralized data management and security
++ Easy to maintain and update server-side
++ Clients are lightweight
++ Scales well with load balancers
+
+DISADVANTAGES:
+--------------
+- Server can be a single point of failure
+- Network dependency — requires stable connection
+- High server load during traffic spikes
+
+REAL-WORLD EXAMPLE:
+-------------------
+Gmail: Your browser (client) sends requests to Google's servers (server), which fetch emails from the database and return them to you.
+
+
+================================================================================
+7. SERVERLESS ARCHITECTURE
+================================================================================
+Serverless Architecture is a cloud execution model where the cloud provider dynamically manages the allocation and provisioning of servers. Developers write individual functions that are triggered by events and are billed only for the actual compute time consumed.
+
+STRUCTURE:
+----------
+  [ Client / Trigger ]
+           |
+    [ API Gateway ]
+           |
+  [ Function A ]  [ Function B ]  [ Function C ]
+  (AWS Lambda)    (Azure Func.)   (Google CF)
+           |
+  [ Backend Services: DB, Storage, Auth ]
+
+HOW IT WORKS:
+-------------
+Developers deploy stateless functions. These functions are triggered by HTTP requests, database changes, message queue events, file uploads, or scheduled timers. The cloud platform handles scaling automatically.
+
+KEY PROVIDERS:
+--------------
+- AWS Lambda + API Gateway
+- Google Cloud Functions
+- Azure Functions
+- Cloudflare Workers
+
+CHARACTERISTICS:
+----------------
+- No server management
+- Auto-scaling (scales to zero when not in use)
+- Event-triggered execution
+- Pay-per-invocation pricing model
+
+ADVANTAGES:
+-----------
++ No infrastructure management
++ Automatic scaling (including to zero)
++ Cost-effective for sporadic or low-volume workloads
++ Faster time to market
++ High availability by default
+
+DISADVANTAGES:
+--------------
+- Cold start latency (first invocation may be slow)
+- Not suitable for long-running processes (max timeout ~15 minutes)
+- Vendor lock-in
+- Debugging and local testing is harder
+- Stateless — requires external storage for state
+
+REAL-WORLD EXAMPLE:
+-------------------
+Image resizing pipeline:
+  User uploads a photo → S3 event triggers Lambda function → Lambda resizes
+  the image into thumbnails → stores them back in S3 → sends a notification.
+
+
+================================================================================
+8. PEER-TO-PEER (P2P) ARCHITECTURE
+================================================================================
+In Peer-to-Peer Architecture, there is no central server. Each node (peer) in the network can act as both a client and a server, sharing resources directly with other peers.
+
+STRUCTURE:
+----------
+  [Peer A] ←→ [Peer B]
+     ↕              ↕
+  [Peer C] ←→ [Peer D]
+
+HOW IT WORKS:
+-------------
+Each peer can initiate requests and fulfill requests from other peers. Resources (files, computing power, bandwidth) are distributed across the network. A discovery mechanism (DHT — Distributed Hash Table) helps peers find each other.
+
+TYPES:
+------
+1. Unstructured P2P: Peers connect randomly (Gnutella, early Napster)
+2. Structured P2P: Peers organized using DHT for efficient lookups (BitTorrent)
+3. Hybrid P2P: Combines P2P with some centralized coordination (Skype, Spotify)
+
+ADVANTAGES:
+-----------
++ No single point of failure
++ Highly scalable — more peers = more capacity
++ Cost-effective (no central server costs)
++ Resilient to censorship and shutdowns
+
+DISADVANTAGES:
+--------------
+- Security concerns (no central authority to verify peers)
+- Inconsistent performance (depends on peer availability)
+- Harder to manage and monitor
+- Legal concerns (file-sharing abuse)
+
+REAL-WORLD EXAMPLE:
+-------------------
+BitTorrent: When you download a file, you download pieces from multiple peers simultaneously, and also upload pieces to others.
+Bitcoin: Transactions are broadcast to all peers; no central bank validates them.
+
+
+================================================================================
+9. HEXAGONAL ARCHITECTURE (PORTS & ADAPTERS)
+================================================================================
+Hexagonal Architecture (proposed by Alistair Cockburn) places the application core (domain/business logic) at the center, isolated from external systems. External systems interact with the core through defined "Ports" (interfaces) and "Adapters" (implementations).
+
+STRUCTURE:
+----------
+         [ REST API Adapter ]
+                  |
+     [ HTTP Port (Input Port) ]
+                  |
+          [ Application Core ]  (Domain Logic)
+                  |
+     [ DB Port (Output Port) ]
+                  |
+         [ MySQL Adapter ]
+
+HOW IT WORKS:
+-------------
+- Ports: Interfaces defining how the outside world can interact with the core
+- Adapters: Concrete implementations connecting the core to external systems (databases, HTTP APIs, message queues, UIs)
+- The core has zero knowledge of external systems
+
+ADVANTAGES:
+-----------
++ Highly testable — swap real adapters with mock adapters
++ Technology-agnostic core
++ Clean separation between business logic and infrastructure
++ Easy to replace external systems (swap MySQL with MongoDB)
+
+DISADVANTAGES:
+--------------
+- More boilerplate code (interfaces + adapters)
+- Overhead for small applications
+- Requires discipline to maintain the boundary
+
+REAL-WORLD EXAMPLE:
+-------------------
+A banking app's loan calculation engine (core) is tested in isolation using mock adapters. In production, the same core connects to a real Oracle DB and a REST API gateway via adapters.
+
+
+================================================================================
+10. LAMBDA ARCHITECTURE
+================================================================================
+Lambda Architecture is a data-processing architecture designed to handle massive quantities of data by using both batch processing and stream processing methods simultaneously. It provides accurate and real-time results.
+
+LAYERS:
+-------
+  [ All incoming data ]
+        |         |
+  [ Batch Layer ] [ Speed Layer ]
+  (Hadoop/Spark)  (Kafka/Storm)
+  (high accuracy)  (low latency)
+        |              |
+  [ Serving Layer ] ←←←|
+  (merges both results)
+        |
+  [ Client Query ]
+
+
+THREE LAYERS:
+-------------
+1. Batch Layer: Processes the complete historical dataset; high accuracy but high latency (hours). Uses tools like Hadoop, Spark.
+2. Speed Layer: Processes only recent data in real time; low latency but approximate results. Uses tools like Apache Storm, Kafka Streams.
+3. Serving Layer: Merges and indexes batch and speed views for fast queries.
+
+ADVANTAGES:
+-----------
++ Handles both real-time and historical data
++ Fault-tolerant — batch layer recomputes from raw data if needed
++ Highly scalable
+
+DISADVANTAGES:
+--------------
+- Complexity of maintaining two separate processing systems
+- Code duplication (same logic in both batch and speed layers)
+- High operational overhead
+
+REAL-WORLD EXAMPLE:
+-------------------
+Twitter's analytics dashboard: Real-time tweet counts come from the speed layer
+(current trends), while historical analytics (total tweets this month) come from
+the batch layer. Both are merged in the serving layer for display.
+
+================================================================================
+11. KAPPA ARCHITECTURE
+================================================================================
+Kappa Architecture is a simplification of Lambda Architecture. It eliminates the batch layer and processes everything as a stream. Historical data is reprocessed by replaying the event log (e.g., Kafka topic).
+
+STRUCTURE:
+----------
+  [ All data (historical + new) stored as event stream ]
+                       |
+           [ Stream Processing Layer ]
+           (Apache Kafka + Flink/Spark Streaming)
+                       |
+              [ Serving Layer ]
+                       |
+               [ Client Query ]
+
+HOW IT WORKS:
+-------------
+All data is treated as an unbounded stream. If you need to reprocess historical
+data, you replay the entire Kafka topic through the stream processing pipeline
+with updated logic.
+
+ADVANTAGES:
+-----------
++ Simpler than Lambda (single codebase, single system)
++ Easier to maintain and operate
++ Real-time by default
+
+DISADVANTAGES:
+--------------
+- Not suitable for complex batch analytics that require full historical context
+- Kafka must retain data for long periods (storage cost)
+- Reprocessing can be slow for very large datasets
+
+REAL-WORLD EXAMPLE:
+-------------------
+LinkedIn uses a Kappa-like architecture for its activity feed — all events
+flow through Kafka and are processed in real-time using Kafka Streams.
+
+================================================================================
+13. MASTER-SLAVE (PRIMARY-REPLICA) ARCHITECTURE
+================================================================================
+Master-Slave Architecture (also called Primary-Replica) involves a master node that handles all write operations and one or more slave/replica nodes that replicate data from the master and handle read operations.
+
+STRUCTURE:
+----------
+  [ Application ]
+      |      \
+  [Write]   [Read]
+      |         \
+  [Master DB] → [Slave DB 1]
+              → [Slave DB 2]
+              → [Slave DB N]
+
+HOW IT WORKS:
+-------------
+- All writes go to the master
+- The master replicates data to slaves asynchronously (or synchronously)
+- Reads are distributed across slaves
+- If the master fails, a slave can be promoted (failover)
+
+USE CASES:
+----------
+- Database read scaling (MySQL replication, PostgreSQL streaming replication)
+- High-availability setups
+- Geographically distributed reads
+
+ADVANTAGES:
+-----------
++ Read scalability — distribute reads across replicas
++ Data backup via replicas
++ High availability with automatic failover
++ Offload analytics/reporting queries to replicas
+
+DISADVANTAGES:
+--------------
+- Write bottleneck — all writes go to one master
+- Replication lag — slaves may serve slightly stale data
+- Failover complexity
+- Single point of failure for writes (mitigated with multi-master)
+
+REAL-WORLD EXAMPLE:
+-------------------
+A news website with heavy reads and occasional writes:
+  - Articles are written to the Master DB (infrequent writes)
+  - Millions of users read articles from Slave DBs (frequent reads)
+  This keeps the master free for writes and distributes read load.
+
+
+=============================
+COMPARISON SUMMARY TABLE
+=============================
+Architecture          | Best For                     | Complexity  | Scalability
+----------------------+------------------------------+-------------+-------------
+Monolithic            | Small apps, MVPs             | Low         | Low
+Microservices         | Large, complex systems       | High        | Very High
+SOA                   | Enterprise integration       | Very High   | Medium
+Event-Driven          | Async, real-time systems     | High        | Very High
+Layered (N-Tier)      | Traditional enterprise apps  | Medium      | Medium
+Client-Server         | Web apps, general use        | Low         | Medium-High
+Serverless            | Event-triggered functions    | Medium      | Very High
+Peer-to-Peer          | Decentralized systems        | High        | Very High
+Hexagonal             | Clean, testable domain code  | Medium      | Medium
+CQRS                  | Read-heavy with complex data | High        | High
+Lambda                | Big data (batch + stream)    | Very High   | Very High
+Kappa                 | Real-time stream processing  | Medium      | Very High
+Master-Slave          | Read-heavy databases         | Medium      | Medium-High
+
+
+================================================================================
+KEY PRINCIPLES ACROSS ALL ARCHITECTURES
+================================================================================
+
+1. SEPARATION OF CONCERNS
+   Each component should have one clearly defined responsibility.
+
+2. SINGLE RESPONSIBILITY PRINCIPLE (SRP)
+   Every module, class, or service should do one thing and do it well.
+
+3. LOOSE COUPLING
+   Components should depend on each other as little as possible.
+
+4. HIGH COHESION
+   Related logic should live close together within a component.
+
+5. SCALABILITY
+   Design systems so individual parts can scale independently.
+
+6. FAULT TOLERANCE
+   No single point of failure; handle failures gracefully.
+
+7. OBSERVABILITY
+   Build in logging, tracing, and monitoring from the start.
+
+8. SECURITY
+   Apply the principle of least privilege; encrypt data in transit and at rest.
+
+
+================================================================================
+HOW TO CHOOSE AN ARCHITECTURE
+================================================================================
+STEP 1: Understand requirements
+  - What is the expected scale? (users, requests per second)
+  - Are there real-time requirements?
+  - How complex is the business domain?
+  - What are the team size and expertise?
+
+STEP 2: Evaluate trade-offs
+  - Consistency vs. Availability (CAP Theorem)
+  - Simplicity vs. Flexibility
+  - Cost vs. Performance
+
+STEP 3: Start simple, evolve
+  - Many systems (Amazon, Netflix, Uber) started as monoliths and evolved
+    into microservices as scale and complexity demanded it.
+  - Premature optimization is the root of all evil — choose the simplest
+    architecture that satisfies your current requirements.

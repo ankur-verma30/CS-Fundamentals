@@ -22,10 +22,13 @@
 👉 In the software world, this translates to:
 ➤ Architecture ─────────▶ The overall structure of the system. Should the system be built as a monolith, a set of microservices, or an event-driven system?
 ➤ Components/Modules ─────────▶ Databases, servers, load balancers, caches, message queues, and APIs.
-➤ Interfaces ─────────▶ How these components communicate with each other
-(e.g., REST APIs, gRPC).
+➤ Interfaces ─────────▶ How these components communicate with each other (e.g. REST APIs, gRPC).
 ➤ Data ─────────▶ How data is stored, managed, accessed, and kept consistent.
 
+
+#####################################
+System Architecture Types ─────────▶ Refer to Types-Of-Systems-Architecture.txt file in this folder.
+#####################################
 
 ======================================
 🔷 10 Big Questions of System Design
@@ -151,10 +154,10 @@ Before designing any system, you need to understand how computers talk to each o
 
 These six concepts are the foundation everything else rests on.
 1️⃣ Client-Server Model
-➤ Every web application you use follows a simple pattern: your browser (the client) asks a server for something, and the server responds.
+➤ Every web application you use follows a simple pattern ─────────▶ your browser (the client) asks a server for something, and the server responds.
 ➤ That is the client-server model. It is so fundamental that you will see it in literally every system design diagram.
 
-+------------------+           Request            +----------------------+
++------------------+           Request           +----------------------+
 |                  | --------------------------> |                      |
 |      CLIENT      |                             |        SERVER        |
 |  (Browser / App) | <-------------------------- |  (API / Backend)     |
@@ -170,7 +173,7 @@ These six concepts are the foundation everything else rests on.
                                                    |                      |
                                                    +----------------------+
 
-➤ The client is any device that initiates a request: your browser, a mobile app, or even another server.
+➤ The client is any device that initiates a request ─────────▶ your browser, a mobile app, or even another server.
 ➤ The server listens for requests, processes them, and sends back responses.
 ➤ This separation is powerful because it lets you change the client (build a mobile app alongside the web app) without touching the server, and scale the server independently of clients.
 
@@ -181,7 +184,7 @@ These six concepts are the foundation everything else rests on.
 ➤ Every device connected to the internet has a unique address, just like every house has a street address.
 ➤ That is an IP address. Without it, your request would have no idea where to go.
 
-+------------------+   Packet   +------------------+   Routes to  +------------------+   Delivers to +------------------+
++------------------+   Packet  +------------------+   Routes to   +------------------+   Delivers to  +------------------+
 |   Your Device    | --------> |      Router      | ------------> |     Internet     | -------------> |      Server      |
 | 192.168.1.10     |           |    Gateway       |               |    Backbone      |                | 142.250.80.46    |
 +------------------+           +------------------+               +------------------+                +------------------+
@@ -194,7 +197,6 @@ There are two versions:
 ➤ For system design, the key thing to know is that IP addresses identify machines on a network.
 ➤ When you talk about servers, load balancers, or database nodes, each one has an IP address that others use to reach it.
 
-
 ❓ Of course, nobody wants to memorize IP addresses. So how does your browser know that "google.com" maps to 142.250.80.46?
 
 
@@ -202,12 +204,42 @@ There are two versions:
 ➤ DNS is the phone book of the internet. You type "google.com" into your browser, and DNS translates that into an IP address your computer can actually route to.
 ➤ Without DNS, you would need to memorize the IP address of every website you visit.
 
-
-+------------------+   Query / Ask   +---------------------+   Try   +--------------+   Try .com   +------------------+   Try google   +-----------------------+   IP Address   +------------------+
-|     Browser      | --------------> |    DNS Resolver     | ------> |  Root Server  | ----------> |   TLD Server     | ------------> |  Authoritative NS     | ------------> |  IP: 142.250.80.46 |
-|   google.com     |                 |     ISP / Local     |         |               |             |      .com        |               |                       |               |                    |
-+------------------+                 +---------------------+         +--------------+             +------------------+               +-----------------------+               +------------------+
-
++------------------+
+|     Browser      |
+|   google.com     |
++------------------+
+         |
+         | Query / Ask
+         v
++---------------------+
+|   DNS Resolver      |
+|   ISP / Local       |
++---------------------+
+         |
+         | Try
+         v
++--------------+
+|  Root Server |
++--------------+
+         |
+         | Try .com
+         v
++------------------+
+|   TLD Server     |
+|      .com        |
++------------------+
+         |
+         | Try google
+         v
++-----------------------+
+|  Authoritative NS     |
++-----------------------+
+         |
+         | IP Address
+         v
++------------------+
+| IP: 142.250.80.46|
++------------------+
 
 ➤ The resolution process involves multiple servers working together.
 ➤ Your browser first checks its local cache. If the answer is not there, it asks a DNS resolver (usually provided by your ISP).
@@ -221,7 +253,7 @@ There are two versions:
 
 4️⃣ Proxy vs Reverse Proxy
 🔄 Forword Proxy
-+-----------+     Request     +----------------+     Request     +----------------+
++-----------+     Request    +----------------+     Request    +----------------+
 |  Client   |  ------------> |  Forward Proxy |  ------------> |  Internet /    |
 | (User)    |                |                |                |  Server        |
 +-----------+                +----------------+                +----------------+
@@ -229,12 +261,12 @@ There are two versions:
       |         Response            |
       +-----------------------------+
 
-A forward proxy sits in front of clients. It hides the client's identity from the server.
-Think of a VPN or corporate proxy: the server sees the proxy's IP, not yours. Use cases include privacy, content filtering, and bypassing geo-restrictions.
+➤ A forward proxy sits in front of clients. It hides the client's identity from the server.
+➤ Think of a VPN or corporate proxy: the server sees the proxy's IP, not yours. Use cases include privacy, content filtering, and bypassing geo-restrictions.
 
 
 🔄 Reverse Proxy
-+-----------+     Request     +----------------+     Request     +------------------+
++-----------+     Request    +----------------+     Request    +------------------+
 |  Client   |  ------------> | Reverse Proxy  |  ------------> |  Backend Server  |
 | (User)    |                |                |                |  (App Servers)   |
 +-----------+                +----------------+                +------------------+
@@ -246,7 +278,6 @@ Think of a VPN or corporate proxy: the server sees the proxy's IP, not yours. Us
 ➤ The client thinks it is talking to one server, but the reverse proxy could be routing requests to dozens of backend servers.
 ➤ Nginx and HAProxy are common examples. Reverse proxies handle SSL termination, caching, compression, and load balancing.
 
-
 👉 Whenever a client communicates with a server, there’s always some delay. One of the biggest causes of this delay is physical distance and that's latency.
 
 
@@ -254,8 +285,7 @@ Think of a VPN or corporate proxy: the server sees the proxy's IP, not yours. Us
 ➤ Latency is the time it takes for data to travel from point A to point B. It is measured in milliseconds and it directly impacts user experience.
 ➤ A 100ms delay is barely noticeable, but 1 second feels sluggish, and 3 seconds? Users start leaving.
 
-
-+-----------+   Transmission Delay   +-----------+   Propagation Delay   +-----------+   Processing Delay   +-----------+   Queuing Delay   +-----------+
++-----------+   Transmission Delay  +-----------+   Propagation Delay   +-----------+   Processing Delay  +-----------+   Queuing Delay   +-----------+
 |  Client   | --------------------> |  Network  | --------------------> |  Router   | ------------------> |  Router   | ----------------> |  Server   |
 +-----------+                       +-----------+                       +-----------+                     +-----------+                   +-----------+
 
@@ -264,8 +294,7 @@ Think of a VPN or corporate proxy: the server sees the proxy's IP, not yours. Us
 ➤ This is why system design solutions often include CDNs (serving content from nearby edge nodes), caching (avoiding round trips to the database), and regional deployments (placing servers closer to users).
 
 👉 Reducing latency is one of the most common non-functional requirements in system design.
-
-Now, when data actually travels between client and server, what language do they speak?
+❓ Now, when data actually travels between client and server, what language do they speak?
 
 
 6️⃣ Protocols: HTTP/ HTTPS
@@ -327,10 +356,10 @@ This group covers the major API styles and real-time communication patterns.
 1️⃣  APIs (Application Programming Interfaces)
 An API is a contract between two pieces of software. It defines what you can ask for, how to ask for it, and what you will get back.
 
-+-------------+   JSON Request   +-------------+   Route to   +---------------------------+   Process   +------------------+
-|  Client App | --------------> |  API Layer  | -----------> | Authentication & Validation | ---------> |  Business Logic  |
-+-------------+                 | Endpoints   |              +---------------------------+            +------------------+
-       ^                         +-------------+                                                          |
++-------------+   JSON Request  +-------------+   Route to   +---------------------------+   Process    +------------------+
+|  Client App | --------------> |  API Layer  | -----------> |Authentication & Validation| --------->   |  Business Logic  |
++-------------+                 | Endpoints   |              +---------------------------+              +------------------+
+       ^                        +-------------+                                                             |
        |                                                                                                    |
        |--------------------------------------- JSON Response ---------------------------------------------+
 
@@ -3152,3 +3181,948 @@ BDP: 125 MB/s × 0.1s = 12.5 MB
 👉 If your TCP window size is smaller than BDP, you will not fully utilize available bandwidth.
 
 
+#######################
+🔷 Consistent Hashing
+#######################
+In a distributed system where nodes (servers) are frequently added or removed, efficiently routing requests becomes challenging.
+
+A common approach is to use hash the request and assign it to a server using Hash(key) mod N, where N is the number of servers.
+
+However, this method is highly dependent on the number of servers, and any change in N can lead to significant rehashing, causing a major redistribution of keys (requests).
+
+Consistent hashing addresses this issue by ensuring that only a small subset of keys need to be reassigned when nodes are added or removed.
+
+Popularized by Amazon’s Dynamo paper, it has now become a fundamental technique in distributed databases like DynamoDB, Cassandra and ScyllaDB.
+
+
+🔄 The Problem with Traditional Hashing
+Before diving into consistent hashing, let us understand why the naive approach fails so badly.
+
+✅ For Example:
+➤ Imagine you're building a high-traffic web application that serves millions of users daily.
+➤ To handle the load efficiently, you distribute incoming requests across multiple backend servers using a hash-based load balancer.
+
+Your system consists of 5 backend servers (S0, S1, S2, S3, S4), and requests are assigned using a hash function that maps each user's IP address to a specific server.
+
+                 +-------------------+
+                 |      Clients      |
+                 |  (User IPs)       |
+                 +---------+---------+
+                           |
+                           v
+                 +-------------------+
+                 |   Hash Function   |
+                 |  H(IP) % 5        |
+                 +---------+---------+
+                           |
+        -----------------------------------------
+        |        |        |        |           |
+        v        v        v        v           v
+     +------+ +------+ +------+ +------+ +------+
+     |  S0  | |  S1  | |  S2  | |  S3  | |  S4  |
+     +------+ +------+ +------+ +------+ +------+
+
+The process works like this:
+1️⃣ The load balancer takes a user’s IP address (or session ID).
+2️⃣ A hash function maps the IP to one of the backend servers by taking the sum of bytes in the IP address and computing mod 5 (since we have 5 servers).
+3️⃣ The request is routed to the assigned server, ensuring that the same user is always directed to the same server for session consistency.
+Example:
+
+
+✅ Example
+Everything Works Fine… Until You Scale
+This approach works as long as the number of servers remains constant. But what happens when you add or remove a server?
+
+Scenario 1️⃣: Adding a New Server (S5)
+➤ As traffic increases, you decide to scale up by adding a new backend server (S5). Now, the hash function must be modified to use mod 6 instead of mod 5 since we have 6 servers now.
+➤ This seemingly simple change completely disrupts the existing mapping, causing most users to be reassigned to different servers.
+
+➤ This results into massive rehashing, leading to high overhead, and potential downtime.
+
+
+Scenario 2️⃣: Removing a Server (S4)
+Now, let’s say one of the servers (S4) fails or is removed. The number of servers drops to 4, forcing the hash function to switch from mod 5 to mod 4.
+
+Even though only one server was removed, most users are reassigned to different servers. This can cause:
+1️⃣ Session Loss ─────────▶ Active users may be logged out or disconnected.
+2️⃣ Cache invalidation ─────────▶ Cached data becomes irrelevant, increasing database load.
+3️⃣ Severe performance degradation ─────────▶ The system may struggle to run efficiently.
+
+
+✅ Solution: Consistent Hashing
+➤ Consistent hashing offers a more scalable and efficient solution by ensuring that only a small fraction of users are reassigned when scaling up or down.
+➤ It performs really well when operated in dynamic environments, where the system scales up and down frequently.
+
+
+🔄 Working of Consistent Hashing
+➤ Consistent hashing is a distributed hashing technique used to efficiently distribute data across multiple nodes (servers, caches, etc.).
+
+➤ It uses a circular hash space (hash ring) with a large and constant hash space.
+
+➤ Both nodes (servers, caches, or databases) and keys (data items) are mapped to positions on this hash ring using a hash function.
+
+➤ Unlike modulo-based hashing, where changes in the number of nodes cause large-scale remapping, consistent hashing ensures that only a small fraction of keys are reassigned when a node is added or removed, making it highly scalable and efficient.
+
+In consistent hashing, when the number of nodes changes, only k/n keys need to be reassigned, where k is the total number of keys and n is the total number of nodes.
+
+
+1️⃣ Constructing the Hash Ring
+Instead of distributing keys based on Hash(key) mod N, consistent hashing places both servers and keys on a circular hash ring.
+
+🔁 Defining the Hash Space
+1️⃣ We use a large, fixed hash space ranging from 0 to 2^32 - 1 (assuming a 32-bit hash function).
+2️⃣ This creates a circular structure, where values wrap around after reaching the maximum limit.
+
+
+🔁 Placing Servers on the Ring
+1️⃣ Each server (node) is assigned a position on the hash ring by computing Hash(server_id).
+2️⃣ Using the above example with 5 servers (S0, S1, S2, S3, S4), the hash function distributes them at different positions around the ring.
+
+                      (0)
+                       |
+              S1       |       S2
+                 \     |     /
+                  \    |    /
+                   \   |   /
+            -----------O -----------
+                   /   |   \
+                  /    |    \
+                 /     |     \
+              S0       |       S3
+                       |
+                       S4
+
+
+🔁 Mapping Keys to Servers
+1️⃣ When a key is added, its position is determined by computing Hash(key).
+       ✅ Example: a user’s request is assigned a position on the ring based on the hash of their IP address: Hash(IP Address)
+2️⃣ We then move clockwise around the ring until we find the next available server.
+3️⃣ The key (or request) is assigned to this server for storage or retrieval.
+
+⚡ Note: In case a key’s hash falls directly on a node’s position, it belongs to that node.
+
+
+🔄 Mapping Keys to Servers
+🔁 Adding a New Server
+Suppose we add a new server (S5) to the system.
+
+                      (0)
+                       |
+              S1       |       S2
+                 \     |     /
+                  \    |    /
+                   \   |   /
+            ----------- O -----------
+                   /   |   \
+                  /    |    \
+                 /     |     \
+              S0      S5      S3
+                       |
+                       S4
+
+
+1️⃣ The position of S5 falls between S1 and S2 in the hash ring.
+2️⃣ S5 takes over all keys (requests) that fall between S1 and S5, which were previously handled by S2.
+✅ Example: User D’s requests which were originally assigned to S2, will now be redirected to S5.
+
+This demonstrates how consistent hashing efficiently redistributes keys with minimal disruption, ensuring that only a small subset of keys are reassigned when new servers are added.
+
+
+🔁 Removing a Node
+When a server, such as S4, fails or is removed from the system:
+
+                      (0)
+                       |
+              S1       |
+                 \     |
+                  \    |
+                   \   |
+            ----------- O -----------
+                   /   |   \
+                  /    |    \
+                 /     |     \
+              S0       |       S3
+                       |
+                       S4
+
+
+1️⃣ All keys previously assigned to S4 are reassigned to the next available server in the ring (S3).
+2️⃣ Only the keys (requests) that were mapped to S4 need to move, while all other keys remain unaffected.
+Removing a Node
+
+This results in minimal data movement, unlike traditional hashing where removing a node would require reassigning most keys.
+
+
+🔄 Virtual Nodes
+In basic consistent hashing, each server is assigned a single position on the hash ring. However, this can lead to uneven data distribution, especially when:
+1️⃣ The number of servers is small.
+2️⃣ Some servers accidentally get clustered together, creating hot spots.
+3️⃣ A server is removed, causing a sudden load shift to its immediate neighbor.
+
+Virtual nodes (VNodes) are a technique used in consistent hashing to improve load balancing and fault tolerance by distributing data more evenly across servers.
+
+
+🔄 How Virtual Nodes Work
+Instead of assigning one position per server, each physical server is assigned multiple positions (virtual nodes) on the hash ring.
+1️⃣ Each server is hashed multiple times to different locations on the ring.
+2️⃣ When a request (key) is hashed, it is assigned to the next virtual node in a clockwise direction.
+3️⃣ The request is then routed to the actual server associated with the virtual node.
+
+✅ Example: Assume we have three physical servers (S1, S2, S3).
+If S1 fails, all its keys must be reassigned to S2, which can create an overload.
+With virtual nodes, each server is hashed multiple times:
+
+                 S1-A
+                    |
+        S0-A                 S2-A
+            \                 /
+             \               /
+              ------  O  ------
+             /               \
+        S3-A                 S4-A
+                    |
+                 S0-B
+                    |
+                 S1-B
+
+➤ Now, instead of just one point, S1 is represented at multiple positions, making the distribution more even.
+➤ If S1 fails, its keys are more evenly redistributed among S2 and S3, rather than all going to S2.
+
+🔗 Code Implementation
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+
+class ConsistentHashing {
+    private final int numReplicas; // Number of virtual nodes per server
+    private final TreeMap<Long, String> ring; // Hash ring storing virtual nodes
+    private final Set<String> servers; // Set of physical servers
+
+    public ConsistentHashing(List<String> servers, int numReplicas) {
+        this.numReplicas = numReplicas;
+        this.ring = new TreeMap<>();
+        this.servers = new HashSet<>();
+
+        // Add each server to the hash ring
+        for (String server : servers) {
+            addServer(server);
+        }
+    }
+
+    private long hash(String key) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            md.update(key.getBytes());
+            byte[] digest = md.digest();
+            return ((long) (digest[0] & 0xFF) << 24) |
+                   ((long) (digest[1] & 0xFF) << 16) |
+                   ((long) (digest[2] & 0xFF) << 8) |
+                   ((long) (digest[3] & 0xFF));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("MD5 algorithm not found", e);
+        }
+    }
+
+    public void addServer(String server) {
+        servers.add(server);
+        for (int i = 0; i < numReplicas; i++) {
+            long hash = hash(server + "-" + i); // Unique hash for each virtual node
+            ring.put(hash, server);
+        }
+    }
+
+    public void removeServer(String server) {
+        if (servers.remove(server)) {
+            for (int i = 0; i < numReplicas; i++) {
+                long hash = hash(server + "-" + i);
+                ring.remove(hash);
+            }
+        }
+    }
+
+    public String getServer(String key) {
+        if (ring.isEmpty()) {
+            return null; // No servers available
+        }
+
+        long hash = hash(key);
+        // Find the closest server in a clockwise direction
+        Map.Entry<Long, String> entry = ring.ceilingEntry(hash);
+        if (entry == null) {
+            // If we exceed the highest node, wrap around to the first node
+            entry = ring.firstEntry();
+        }
+        return entry.getValue();
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        List<String> servers = Arrays.asList("S0", "S1", "S2", "S3", "S4", "S5");
+        ConsistentHashing ch = new ConsistentHashing(servers, 3);
+
+        // Step 2: Assign requests (keys) to servers
+        System.out.println("UserA is assigned to: " + ch.getServer("UserA"));
+        System.out.println("UserB is assigned to: " + ch.getServer("UserB"));
+
+        // Step 3: Add a new server dynamically
+        ch.addServer("S6");
+        System.out.println("UserA is now assigned to: " + ch.getServer("UserA"));
+
+        // Step 4: Remove a server dynamically
+        ch.removeServer("S2");
+        System.out.println("UserB is now assigned to: " + ch.getServer("UserB"));
+    }
+}
+
+This implements Consistent Hashing to:
+       ✔️ Distribute keys (like users) across servers
+       ✔️ Support dynamic server addition
+       ✔️ Support dynamic server removal
+       ✔️ Minimize key remapping
+       ✔️ Improve load balancing using virtual nodes
+
+
+🔁 Core Data Structures
+private final int numReplicas;
+private final TreeMap<Long, String> ring;
+private final Set<String> servers;
+
+1️⃣ numReplicas
+➤ Number of virtual nodes per physical server
+✅ Example: If 3 → each server appears 3 times on ring
+➤ Improves load balancing
+
+2️⃣ TreeMap<Long, String> ring
+This is the hash ring.
+
+❓ Why TreeMap?
+➤ It keeps keys sorted
+➤ Allows:
+       ✔️ ceilingEntry() → find next clockwise node
+       ✔️ firstEntry() → wrap-around support
+
+Structure looks like:
+Hash Value ─────────▶ Server
+12345      ─────────▶ S1
+34567      ─────────▶ S3
+56789      ─────────▶ S0
+
+3️⃣ Set<String> servers
+Stores actual physical servers, not virtual ones.
+
+
+🔁 Constructor
+public ConsistentHashing(List<String> servers, int numReplicas)
+
+What happens:
+1️⃣ Initialize ring
+2️⃣ Initialize server set
+3️⃣ For each server → call addServer(server)
+
+👉 So the constructor: Automatically builds the initial hash ring
+
+
+🔁 The hash() Function
+private long hash(String key)
+
+❓ What it does:
+1️⃣ Uses MessageDigest from: Java Platform
+2️⃣ Applies MD5 hash
+3️⃣ Takes first 4 bytes
+4️⃣ Converts them to a 32-bit long
+
+❓ Why?
+➤ Convert any string → numeric position on ring
+➤ Both servers and keys use same hash function
+
+Important:
+➤ Same input → always same output
+➤ Ensures deterministic mapping
+
+
+🔁 Adding a Server
+public void addServer(String server)
+
+Step-by-step:
+1️⃣ Add server to servers set
+2️⃣ For each replica: hash(server + "-" + i)
+3️⃣ Insert into ring
+
+✅ Example if numReplicas = 3:
+For server S1, we create:
+hash("S1-0")
+hash("S1-1")
+hash("S1-2")
+➤ Each becomes a virtual node on the ring.
+➤ This spreads server across ring evenly.
+
+🔵 6️⃣ Removing a Server
+public void removeServer(String server)
+
+What happens:
+1️⃣ Remove physical server from set
+2️⃣ Remove all its virtual nodes from ring
+
+So:
+➤ Only keys that mapped to this server are affected
+➤ Other keys remain unchanged
+👉 This is the power of consistent hashing.
+
+
+🔁 Getting Server for a Key
+public String getServer(String key)
+This is the most important method.
+
+Step 1️⃣: Hash the key
+long hash = hash(key);
+👉 Now key has a position on ring.
+
+
+Step 2️⃣: Find next clockwise node
+Map.Entry<Long, String> entry = ring.ceilingEntry(hash);
+
+➤ Finds smallest hash ≥ key hash
+➤ This is clockwise movement
+
+
+Step 3️⃣: Wrap around
+If no entry found: entry = ring.firstEntry();
+👉 This handles circular nature of ring.
+
+
+Step 4️⃣: Return server
+return entry.getValue(); That server handles request.
+
+
+🔁 Main Method Flow
+List<String> servers = Arrays.asList("S0", "S1", "S2", "S3", "S4", "S5");
+ConsistentHashing ch = new ConsistentHashing(servers, 3);
+
+1️⃣ Initial state:
+       ✔️ 6 physical servers
+       ✔️ Each has 3 virtual nodes
+       ✔️ Total nodes on ring = 18
+
+2️⃣ Assign Users
+System.out.println(ch.getServer("UserA"));
+
+➤ Hash "UserA"
+➤ Move clockwise
+➤ Assign to nearest server
+
+
+3️⃣ Add Server S6
+ch.addServer("S6");
+
+➤ Adds 3 virtual nodes
+➤ Only keys between predecessor and S6 move
+➤ Other mappings unchanged
+👉 This shows minimal redistribution.
+
+
+4️⃣ Remove Server S2
+ch.removeServer("S2");
+
+➤ Removes S2's virtual nodes
+➤ Only its keys move to next server
+➤ System remains stable
+
+
+❓ Why TreeMap Is Critical
+| Operation        | Why Needed            |
+| ---------------- | --------------------- |
+| `ceilingEntry()` | Find clockwise server |
+| `firstEntry()`   | Wrap around ring      |
+| Sorted keys      | Ring simulation       |
+👉 Without sorted structure → no consistent hashing.
+
+
+❓ Why Virtual Nodes Matter
+Without replicas:
+       ✔️ Uneven distribution
+       ✔️ One server may get more keys
+
+With replicas:
+       ✔️ Better distribution
+       ✔️ Smooth scaling
+       ✔️ Handles heterogeneous servers
+
+This is how:
+       ✔️ Amazon Web Services
+       ✔️ Apache Cassandra
+👉 balance distributed workloads internally.
+
+
+🔄 Time Complexity
+| Operation     | Complexity |
+| ------------- | ---------- |
+| Add server    | O(R log N) |
+| Remove server | O(R log N) |
+| Get server    | O(log N)   |
+
+👉 Where:
+       ✔️ R = number of replicas
+       ✔️ N = number of nodes in ring
+
+
+################
+🔷 CAP Theorem
+################
+➤ The CAP theorem, introduced by Eric Brewer in 2000, provides a fundamental framework for understanding the trade-offs that must be made when designing distributed systems.
+
+➤ CAP stands for Consistency, Availability, and Partition Tolerance, and the theorem states that: It is impossible for a distributed data store to simultaneously provide all three guarantees.
+
+1️⃣ Consistency (C): Every read receives the most recent write or an error.
+2️⃣ Availability (A): Every request (read or write) receives a non-error response, without guarantee that it contains the most recent write.
+3️⃣ Partition Tolerance (P): The system continues to operate despite an arbitrary number of messages being dropped (or delayed) by the network between nodes.
+
+
+🔄 Three Pillars of CAP
+1️⃣ Consistency
+Consistency ensures that every read receives the most recent write or an error. This means that all working nodes in a distributed system will return the same data at any given time.
+
+                +-------------------+
+                |       Client      |
+                +---------+---------+
+                          |
+                          | Write (X = 10)
+                          v
+                 +--------+--------+
+                 |      Leader     |
+                 +--------+--------+
+                          |
+        ---------------------------------------
+        |                 |                   |
+        v                 v                   v
+   +----------+      +----------+       +----------+
+   |  Node A  |      |  Node B  |       |  Node C  |
+   |  X = 10  |      |  X = 10  |       |  X = 10  |
+   +----------+      +----------+       +----------+
+
+In a consistent distributed system, if you write data to node A, a read operation from node B will immediately reflect the write operation on node A.
+
+Consistency is crucial for applications where having the most up-to-date data is critical, such as financial systems, where a balance inquiry must reflect the most up-to-date state of an account.
+
+
+2️⃣ Availability
+➤ Availability guarantees that every request (read or write) receives a response, without ensuring that it contains the most recent write.
+➤ This means that the system remains operational and responsive, even if the response from some of the nodes don’t reflect most up-to-date data.
+
+                +-------------------+
+                |       Client      |
+                +---------+---------+
+                          |
+                          | Read / Write
+                          v
+        ---------------------------------------
+        |                 |                   |
+        v                 v                   v
+   +----------+      +----------+       +----------+
+   |  Node A  |      |  Node B  |       |  Node C  |
+   | X = 10   |      | X = 9    |       | X = 8    |
+   +----------+      +----------+       +----------+
+
+Availability is important for applications that need to remain operational at all times, such as online retail systems.
+
+
+3️⃣ Partition Tolerance
+Partition Tolerance means that the system continues to function despite network partitions where nodes cannot communicate with each other.
+
+                +-------------------+
+                |       Client      |
+                +---------+---------+
+                          |
+                          v
+
+        ----------- NETWORK FAILURE -----------
+
+        Partition 1                 Partition 2
+   --------------------        --------------------
+   |      Node A      |        |      Node B      |
+   |      Node C      |        |      Node D      |
+   --------------------        --------------------
+
+➤ A network partition occurs when a network failure causes a distributed system to split into two or more groups of nodes that cannot communicate with each other.
+
+➤ When there is a network partition, the system must choose between Consistency and Availability.
+
+➤ Partition Tolerance is essential for distributed systems because network failures can and do happen. A system that tolerates partitions can maintain operations across different network segments.
+
+
+🔄 The CAP Trade-Off: Choosing 2 out of 3
+The CAP theorem asserts that in the presence of a network partition, a distributed system must choose between Consistency and Availability.
+
+Let's explore these scenarios:
+1️⃣ CP (Consistency and Partition Tolerance)
+➤ These systems prioritize consistency and can tolerate network partitions, but at the cost of availability.
+➤ During a partition, the system may reject some requests to maintain consistency.
+
+➤ Traditional relational databases, such as MySQL and PostgreSQL, when configured for strong consistency, prioritize consistency over availability during network partitions.
+
+✅ For Example: Banking systems typically prioritize consistency over availability since data accuracy is more critical than availability during network issues. Consider an ATM network for a bank. When you withdraw money, the system must ensure that your balance is updated accurately across all nodes (consistency) to prevent overdrafts or other errors.
+
+
+2️⃣ AP (Availability and Partition Tolerance)
+➤ These systems ensure availability and can tolerate network partitions, but at the cost of consistency. During a partition, different nodes may return different values for the same data.
+
+➤ NoSQL databases like Cassandra and DynamoDB are designed to be highly available and partition-tolerant, potentially at the cost of strong consistency.
+
+✅ For Example: Amazon's shopping cart system is designed to always accept items, prioritizing availability. When you add items to your Amazon cart, the action almost never fails, even during high traffic periods like Black Friday.
+
+
+3️⃣ CA (Consistency and Availability)
+➤ In the absence of partitions, a system can be both consistent and available. However, network partitions are inevitable in distributed systems, making this combination impractical.
+
+✅ Example Systems: Single-node databases can provide both consistency and availability but aren't partition-tolerant. In a distributed setting, this combination is theoretically impossible.
+
+
+🔄 Practical Design Strategies
+Designing distributed systems requires carefully balancing these trade-offs based on application requirements.
+
+Here are some practical strategies:
+1️⃣ Eventual Consistency
+➤ For many systems, strict consistency isn't always necessary.
+➤ Eventual consistency can provide a good balance where updates are propagated to all nodes eventually, but not immediately.
+
+✅ Example: Systems where immediate consistency is not critical, such as DNS and content delivery networks (CDNs).
+
+
+2️⃣ Strong Consistency
+A model ensuring that once a write is confirmed, any subsequent reads will return that value.
+
+✅ Example: Systems requiring high data accuracy, like financial applications and inventory management.
+
+
+3️⃣ Tunable Consistency
+➤ Tunable consistency allows systems to adjust their consistency levels based on specific needs, providing a balance between strong and eventual consistency.
+
+➤ Systems like Cassandra allow configuring the level of consistency on a per-query basis, providing flexibility.
+
+✅ Example: Applications needing different consistency levels for different operations, such as e-commerce platforms where order processing requires strong consistency but product recommendations can tolerate eventual consistency.
+
+
+4️⃣ Quorum-Based Approaches:
+Quorum-based approaches use voting among a group of nodes to ensure a certain level of consistency and fault tolerance.
+
+✅Example: Systems needing a balance between consistency and availability, often used in consensus algorithms like Paxos and Raft.
+
+
+🔄 Beyond CAP: PACELC
+While CAP is foundational, it doesn't cover all scenarios.
+
+Daniel Abadi proposed the PACELC theorem as an extension by introducing latency and consistency as additional attributes of distributed systems.
+
+1️⃣ If there is a partition (P), the trade-off is between availability and consistency (A and C).
+2️⃣ Else (E), the trade-off is between latency (L) and consistency (C).
+This theorem acknowledges that even when the system is running normally, there's a tradeoff between latency and consistency.
+
+👉 In conclusion, the CAP Theorem is a powerful tool for understanding the inherent trade-offs in distributed system design. It's not about choosing the "best" property, but rather about making informed decisions based on the specific needs of your application.
+
+By carefully evaluating the CAP trade-offs, you can architect robust and resilient systems that deliver the right balance of consistency, availability, and partition tolerance.
+
+
+#######################
+🔷 Consistency Models
+#######################
+In modern applications, data rarely lives in just one place. It's spread across multiple servers, potentially in different data centers around the globe.
+
+This distribution brings scalability and resilience, but it also introduces a fascinating challenge: how do we ensure that all users, and all parts of the system, see a coherent and correct view of the data, especially when things are changing rapidly?
+
+This is where consistency models come into play.
+
+
+❓ Why Consistency is Hard in Distributed Systems?
+On a single machine, consistency is simple. There is one copy of the data, and every read sees the most recent write. But the moment you replicate data across multiple machines, everything changes.
+
+🔁 The Replication Problem
+When data exists on multiple nodes, those copies can diverge. A write reaches one node before another. A network hiccup delays propagation. A node restarts and misses updates.
+
+The fundamental question: when a client reads from Node 2, should it get the stale value (X = 3) or should the system prevent this somehow?
+
+The Trade-offs
+Stronger consistency guarantees come at a cost:
+
+| Stronger Consistency Guarantee | Cost / Trade-off                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| All reads see the latest write     | Higher latency (nodes must coordinate before responding)                  |
+| No stale data                      | Lower availability (system may reject requests during network partitions) |
+| Predictable behavior               | Lower throughput (operations must be serialized or synchronized)          |
+
+
+Weaker consistency allows:
+| Weaker Consistency Property      | Benefit                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| Reads may be stale                   | Lower latency (can read from any replica without coordination)            |
+| Replicas may diverge temporarily     | Higher availability (system can serve requests during network partitions) |
+| Operations can proceed independently | Higher throughput (no need for global synchronization)                    |
+
+
+❓ What Consistency Models Define
+A consistency model is a contract between the system and the programmer. It specifies what values a read operation can return, given the history of writes to the system.
+
+Different models make different promises. Some guarantee you always see the latest value. Others only guarantee eventual convergence. Understanding these guarantees is crucial for building correct applications.
+
+
+🔄 The Consistency Spectrum
+Consistency is not just strong or weak.
+It exists on a spectrum of guarantees.
+
+Strong Guarantees  ---------------------------------------->  Weak Guarantees
+✔️ Strict Serializability
+✔️ Linearizability
+✔️ Sequential Consistency
+✔️ Causal Consistency
+✔️ PRAM (FIFO)
+✔️ Eventual Consistency
+
+
+Idea
+1️⃣ Move left → more coordination, more latency.
+2️⃣ Move right → less coordination, more performance.
+3️⃣ You trade correctness guarantees for scalability.
+
+
+🔄 Strong Consistency Models
+Strong models try to make a distributed system behave like a single machine.
+
+1️⃣ Linearizability
+➤ Every operation appears to happen instantly at one single point in time.
+➤ If a write completes before a read starts, the read must see that write.
+
+Time →
+Client A         Write X=10
+     |--------------------> Leader
+                             |
+                             v
+                      +--------------+
+                      |   Leader     |
+                      +--------------+
+                        |     |     |
+                        v     v     v
+                     Node1  Node2  Node3
+                     X=10   X=10   X=10
+
+Client B
+     |---- Read ----> Any Node → MUST return 10
+
+👉 Real-time order is preserved.
+Cost:
+       ✔️ High coordination
+       ✔️ Higher latency
+
+
+2️⃣ Sequential Consistency
+All clients see operations in the same order, but not necessarily real-time order.
+
+Global Order (agreed by all nodes):
+W1: X=1  →  W2: X=2
+
+Client A writes W1
+Client B writes W2
+
+All nodes must apply:
+
++--------------------+
+|  Node 1            |
+|  X=1 → X=2         |
++--------------------+
+
++--------------------+
+|  Node 2            |
+|  X=1 → X=2         |
++--------------------+
+
+Important:
+       ✔️ Order is consistent.
+       ✔️ Real clock timing does not matter.
+
+
+3️⃣ Strict Serializability
+➤ Transactions behave as if:
+       ✔️ They run one after another
+       ✔️ In real-time order
+➤ Strongest practical model.
+
+Time →
+T1: Transfer ₹100
+|--------------------|
+
+T2: Check Balance
+           |--------------|
+
+Execution Order (System):
++----------------------------+
+| Execute T1 fully           |
+| Then Execute T2 fully      |
++----------------------------+
+All replicas reflect same final state.
+
+Used in:
+       ✔️ Banking
+       ✔️ Financial systems
+
+Cost:
+       ✔️ Very high coordination
+       ✔️ Lower throughput
+
+
+🔄 Weak Consistency Models
+Weak models reduce coordination to improve performance.
+
+1️⃣ Eventual Consistency
+If no new writes happen, all replicas will eventually converge.
+
+Write X=5
+
+Client
+   |
+   v
++---------+
+| Node 1  | X=5
++---------+
+      |
+      | Replication (Delayed)
+      v
+
++---------+       +---------+
+| Node 2  | X=3   | Node 3  | X=3
+| (stale) |       | (stale) |
++---------+       +---------+
+
+After some time → All Nodes → X=5
+
+Key:
+       ✔️ Reads may be stale.
+       ✔️ Eventually consistent.
+
+Benefit:
+       ✔️ High availability
+       ✔️ Low latency
+
+
+2️⃣ Causal Consistency
+Cause-effect relationships must be preserved.
+
+If:
+A writes X=5
+B reads X=5
+B writes Y=10
+👉 Everyone must see X=5 before Y=10.
+
+Client A: Write X=5
+           |
+           v
+Client B: Read X=5
+           |
+           v
+Client B: Write Y=10
+
+All nodes must apply in order:
+
+X=5  →  Y=10
+But unrelated writes can be reordered.
+
+➤ Stronger than eventual.
+➤ Weaker than sequential.
+
+
+3️⃣ PRAM Consistency (FIFO)
+PRAM = Pipelined RAM
+➤ Writes from the same client are seen in order.
+➤ But different clients’ writes may appear differently.
+
+Client A:
+W1: X=1
+W2: X=2
+
+Client B:
+W3: X=3
+
+Replica 1 sees:
+W1 → W2 → W3
+
+Replica 2 sees:
+W3 → W1 → W2
+
+Rule:
+W1 must come before W2 everywhere.
+But W3 position can vary.
+
+➤ Very weak.
+➤ Very scalable.
+
+
+🔄 Client-Centric Consistency Models
+Focus: what a single user experiences.
+
+1️⃣ Read-Your-Writes (RYW)
+➤ After you write something,
+➤ you must see your update.
+
+User writes X=10
+   |
+   v
++---------+
+| Node 1  | X=10
++---------+
+
+User reads → System routes read to updated replica
+Return: 10
+
+Prevents: “I just updated it but I still see old value.”
+
+
+2️⃣ Monotonic Reads
+Once you see a value, you will never see an older value.
+
+Read 1 → Node A → X=10
+Read 2 → Node B → X=5 ❌ (Not allowed)
+
+System ensures: Read 2 must return ≥ 10
+➤ Prevents time going backwards.
+
+
+3️⃣ Monotonic Writes
+Your writes must be applied in order.
+
+User writes:
+W1: X=1
+W2: X=2
+
+System must apply:
+Node A: X=1 → X=2
+Node B: X=1 → X=2
+Cannot apply W2 before W1.
+
+
+4️⃣ Writes-Follow-Reads
+If you read a value, your next write must be based on that version or newer.
+
+User reads X=5
+   |
+   v
+User writes X=6
+
+➤ System ensures: Write happens on replica that has seen X=5
+➤ Prevents: Overwriting newer updates with stale data.
+
+
+🔄 Choosing the Right Consistency Model
+1️⃣ Use Strong Models When:
+➤ Banking
+➤ Inventory
+➤ Payment systems
+
+
+2️⃣ Use Eventual / Weak Models When:
+➤ Social feeds
+➤ Likes and comments
+➤ Analytics
+➤ Caching layers
+
+
+3️⃣ Use Client-Centric When:
+➤ UX is important
+➤ Global ordering not required
