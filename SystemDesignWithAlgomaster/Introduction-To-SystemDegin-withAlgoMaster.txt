@@ -33,7 +33,7 @@ System Architecture Types ─────────▶ Refer to Types-Of-Syste
 ======================================
 🔷 10 Big Questions of System Design
 ======================================
-On a high level, system design revolves around answering these 10 big questions:
+On a high level, system design revolves around answering 10 big questions:
 1️⃣ Scalability ─────────▶ How will the system handle a large number of users or requests simultaneously?
 2️⃣ Latency and Performance ─────────▶ How can we reduce response time and ensure low-latency performance under load?
 3️⃣ Communication ─────────▶ How do different components of the system interact with each other?
@@ -50,7 +50,6 @@ On a high level, system design revolves around answering these 10 big questions:
 🔷 Key Components of System
 =============================
 A typical software system can be broken down into several key components:
-
 1️⃣ Client/Frontend ─────────▶ The part of the system that users interact with directly (e.g., web browsers, mobile apps). It is responsible for displaying information, collecting user input, and communicating with the backend.
 
 2️⃣ Server/Backend ─────────▶ The backend handles the core functionality of the system. It processes incoming requests, executes business logic, interacts with databases or services, and sends responses back to the client.
@@ -67,7 +66,7 @@ A typical software system can be broken down into several key components:
 =============================
 Designing a system is not a one-size-fits-all approach. It’s a step-by-step process that starts with understanding the requirements and ends with a detailed blueprint.
 
-Here are the key steps:
+Key steps:
 Step 1️⃣ ─────────▶ Requirements Gathering
 Every design starts with a conversation. Before drawing diagrams or choosing technologies, focus on understanding what the system needs to do.
 
@@ -126,7 +125,6 @@ Ask yourself:
 ❓ What are the single points of failure?
 ❓ Can caching or replication help reduce pressure?
 ❓ Is it okay to choose eventual consistency for higher availability?
-
 👉 A strong design doesn’t eliminate trade-offs, it makes them explicit and justifiable.
 
 
@@ -307,7 +305,7 @@ There are two versions:
 |  Browser  | ----------------> |  Server   |
 | (Client)  |                   |           |
 +-----------+                   +-----------+
-       |                               |
+       |                              |
        |   Server Hello + Certificate |
        | <----------------------------|
        |                              |
@@ -341,7 +339,7 @@ There are two versions:
 ➤ HTTP is stateless: each request is independent, and the server does not remember previous requests.
 ➤ This makes scaling easier (any server can handle any request) but means you need mechanisms like cookies, tokens, or sessions to maintain state across requests.
 
-❓ Key things to know for interviews: HTTP methods (GET, POST, PUT, DELETE), status codes (200 OK, 404 Not Found, 500 Server Error), and headers (for authentication, caching, content type).
+❓ Key things to know: HTTP methods (GET, POST, PUT, DELETE), status codes (200 OK, 404 Not Found, 500 Server Error), and headers (for authentication, caching, content type).
 ➤ HTTPS adds a TLS handshake that takes an extra round trip but protects data in transit.
 
 👉 With networking covered, let's move up a layer. How do applications actually exchange data in a structured way?
@@ -350,9 +348,8 @@ There are two versions:
 ===========================
 🔷 APIs and Communication
 ===========================
-Now that we know how machines connect, how do applications actually talk to each other? You need well-defined contracts, called APIs, that specify what data you can request and what format it comes back in.
+Now that we know how machines connect, how do applications actually talk to each other? We need well-defined contracts, called APIs, that specify what data you can request and what format it comes back in.
 
-This group covers the major API styles and real-time communication patterns.
 1️⃣  APIs (Application Programming Interfaces)
 An API is a contract between two pieces of software. It defines what you can ask for, how to ask for it, and what you will get back.
 
@@ -377,12 +374,12 @@ Think of an API like a restaurant menu. You do not go into the kitchen and cook.
 ➤ It treats everything as a "resource" and uses standard HTTP methods to interact with those resources.
 ➤ It is simple, stateless, and works well for most applications.
 
-+-------------+   HTTP Request   +------------------+   Route to   +-------------------------+   Execute   +------------------+
++-------------+   HTTP Request  +------------------+   Route to   +-------------------------+   Execute  +------------------+
 |  Client App | --------------> |   REST API       | -----------> | Authentication &        | ---------> |  Business Logic  |
 | (Web/Mobile)|                 |   Controller     |              | Authorization &         |            |  (Service Layer) |
 +-------------+                 +------------------+              | Validation              |            +------------------+
-       ^                                                                            |
-       |                                                                            |
+       ^                                                          |-------------------------|
+       |                                                                           |
        |-------------------------------------- HTTP Response (JSON/XML) -----------+
 
 ➤ REST maps naturally to CRUD operations: Create (POST), Read (GET), Update (PUT/PATCH), and Delete (DELETE).
@@ -402,18 +399,18 @@ REST's simplicity is its biggest strength, but it has a drawback: if a client ne
 GraphQL, developed by Facebook, lets clients request exactly the data they need in one query.
 Instead of hitting multiple REST endpoints, you send a single query describing the shape of the data you want, and the server returns exactly that.
 
-+-------------+   GraphQL Query   +------------------+   Parse & Validate   +------------------+   Fetch Data   +------------------+
-|  Client App | ----------------> |  GraphQL Server  | -------------------> |     Schema       | ------------> |    Resolvers     |
-| (UI / App)  |                  |   (Single API)   |                      | (Type System)   |               | (Business Logic)|
++-------------+   GraphQL Query   +------------------+   Parse & Validate  +------------------+   Fetch Data  +------------------+
+|  Client App | ----------------> |  GraphQL Server  | ------------------->|     Schema       | ------------> |    Resolvers     |
+| (UI / App)  |                   |   (Single API)   |                     | (Type System)    |               | (Business Logic) |
 +-------------+                  +------------------+                      +------------------+               +------------------+
-       ^                                                                                                             |
-       |                                                                                                             |
+       ^                                                                                                            |
+       |                                                                                                            |
        |--------------------------------------------- GraphQL Response ---------------------------------------------+
 
 ➤ With REST, fetching a user's profile with their posts might require two separate requests: one to /users/123 and another to /users/123/posts.
 ➤ With GraphQL, you describe both in a single query, and the server resolves them and returns a combined result.
 
-➤ The trade-off? GraphQL adds complexity on the server side (you need resolvers for each field), can make caching harder (since every query is different), and can lead to performance issues if clients request deeply nested data.
+🔁 The trade-off? GraphQL adds complexity on the server side (you need resolvers for each field), can make caching harder (since every query is different), and can lead to performance issues if clients request deeply nested data.
 
 ➤ For most system design problems, REST is the safer default, but mentioning GraphQL shows breadth of knowledge, especially for systems where clients need flexible data fetching (like social media feeds).
 
@@ -422,15 +419,14 @@ REST and GraphQL handle request-response patterns. But what about real-time comm
 
 4️⃣ WebSockets
 HTTP is a one-way street: the client always initiates the request. But what about chat apps, live sports scores, or collaborative editors?
-
 You need the server to push updates to the client instantly. That is where WebSockets come in.
 
 CLIENT SIDE                                  SERVER SIDE
 -----------                                  -----------
-+----------------------+                     +----------------------+
-|        Client        |                     |        Server        |
++----------------------+                     +---------------------+
+|        Client        |                     |        Server       |
 |   (Browser / App)    |                     |  (WebSocket Server) |
-+----------+-----------+                     +----------+-----------+
++----------+-----------+                     +----------+----------+
            |                                            |
            |  HTTP Upgrade Request                      |
            |  (Handshake)                               |
@@ -440,10 +436,10 @@ CLIENT SIDE                                  SERVER SIDE
            |  (Upgrade to WebSocket)                    |
            |<-------------------------------------------|
            |                                            |
-+----------+-----------+                     +----------+-----------+
-|  WebSocket Connection |<==================>|  WebSocket Connection |
-|   (Persistent)        |   Full-Duplex      |   (Persistent)        |
-+----------+-----------+                     +----------+-----------+
++----------+-----------+                      +---------+------------+
+|  WebSocket Connection| <==================> |  WebSocket Connection|
+|   (Persistent)       |    Full-Duplex       |   (Persistent)       |
++----------+-----------+                      +---------+------------+
            |                                            |
            |  Message Frame (Text / Binary)             |
            |------------------------------------------->|
@@ -452,8 +448,8 @@ CLIENT SIDE                                  SERVER SIDE
            |<-------------------------------------------|
            |                                            |
 +----------+-----------+                     +----------+-----------+
-| Application Logic     |                     | Application Logic     |
-| (Chat / Notifications)|                     | (Broadcast / Process) |
+| Application Logic     |                    | Application Logic    |
+| (Chat / Notifications)|                    | (Broadcast / Process)|
 +----------------------+                     +----------------------+
 
 ➤ WebSockets start as a regular HTTP request, then "upgrade" to a persistent, bidirectional connection.

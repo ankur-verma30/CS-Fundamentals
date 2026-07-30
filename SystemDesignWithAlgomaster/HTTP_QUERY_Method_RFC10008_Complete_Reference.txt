@@ -1,0 +1,1625 @@
+================================================================================
+  HTTP QUERY METHOD — COMPLETE REFERENCE DOCUMENTATION
+  RFC 10008 | Published June 2026 | IETF HTTP Working Group
+================================================================================
+
+Authors of RFC 10008 : Julian Reschke (greenbytes),
+                        James M. Snell (Cloudflare),
+                        Mike Bishop (Akamai)
+Status               : Proposed Standard (IETF Standards Track)
+Reference            : https://www.rfc-editor.org/rfc/rfc10008.html
+Related              : RFC 9110 (HTTP Semantics), RFC 9111 (HTTP Caching), RFC 9112 (HTTP/1.1), RFC 9113 (HTTP/2), RFC 9114 (HTTP/3)
+
+
+================================================================================
+1. BACKGROUND AND MOTIVATION
+================================================================================
+HTTP has always had a gap between what developers need and what the standard provides for safe, read-only queries. The problem shows up in every REST API that grows large enough to need complex filtering.
+
+THE PROBLEM WITH GET
+--------------------
+GET is the natural choice for a read-only query. It is:
+  - Safe       : no state change on the server
+  - Idempotent : repeating it is harmless
+  - Cacheable  : intermediaries can cache the response
+
+However, GET has one critical limitation: the query must live in the URL. RFC 9110 Section 9.3.1 states:
+  "Content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request."
+
+URL length is not reliably bounded. RFC 9110 recommends servers support at least 8,000 octets, but many proxies, load balancers, and servers have tighter limits. When a GET query has 50 filter fields, nested boolean logic, or raw JSON structure, it simply does not fit.
+
+Additional problems with query-in-URL:
+  - URLs appear in server logs, browser history, bookmarks, and Referer headers. Sensitive filter data is exposed everywhere.
+  - Parameter order differences make ?a=1&b=2 and ?b=2&a=1 look like different resources to caches and analytics tools, creating false cache misses.
+  - Encoding complex structures (arrays, nested objects) into query strings is ad-hoc and fragile across different frameworks.
+
+THE PROBLEM WITH POST
+---------------------
+The common workaround was POST /search — send the query body as JSON. POST solves the URL-length problem but introduces semantic corruption:
+  - POST is NOT safe (infrastructure assumes it might change state)
+  - POST is NOT idempotent (can't be automatically retried after failures)
+  - POST is NOT cacheable by default for the same future request pattern
+
+A failed POST after a network timeout leaves the client unable to safely retry without building idempotency key infrastructure. Caches cannot store POST responses for reuse unless the server explicitly adds Content-Location and freshness headers in the exact pattern required by RFC 9110 Section 9.3.3 — and even then the cached POST can only serve future GET/HEAD requests, not future POST requests. Every repeated dashboard poll hits the origin at full cost.
+
+
+THE SOLUTION: HTTP QUERY
+------------------------
+QUERY is a new HTTP method that combines the semantic guarantees of GET with the body-carrying capability of POST. As RFC 10008 Abstract states:
+
+  "A QUERY requests that the request target process the enclosed content in a safe and idempotent manner and then respond with the result of that processing. This is   similar to POST requests but can be automatically repeated or restarted without concern for partial state changes."
+
+================================================================================
+2. WHAT IS THE HTTP QUERY METHOD?
+================================================================================
+QUERY is a new, standardized HTTP request method published as RFC 10008 in June 2026. It instructs the server to treat the request body as the definition of a query and to return the results of executing that query.
+
+Key distinction from GET:
+  "Unlike the HTTP GET method, which requests that a server return a representation of the resource identified by the target URI, the QUERY method is used to ask the server to perform a query operation (described by the request content) over some set of data scoped to the target URI." — RFC 10008, Section 2
+
+Key distinction from POST:
+  The response to a QUERY is NOT a representation of the target resource.
+  It is the RESULT of running the query defined in the body.
+  Unlike POST, QUERY carries explicit guarantees of safety and idempotency.
+
+Basic anatomy of a QUERY request:
+
+  QUERY /contacts HTTP/1.1
+  Host: api.example.com
+  Content-Type: application/json
+  Accept: application/json
+
+  {
+    "filter": {
+      "status": "active",
+      "city": "Bengaluru",
+      "joined_after": "2024-01-01"
+    },
+    "sort": "-created_at",
+    "limit": 50,
+    "offset": 0
+  }
+
+  Response:
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+  Accept-Query: "application/json", "application/jsonpath"
+
+  {
+    "total": 142,
+    "results": [ ... ]
+  }
+
+================================================================================
+3. CORE PROPERTIES OF QUERY
+================================================================================
+RFC 10008 defines QUERY with the following properties, each with specific implications for how clients, servers, and intermediaries must behave.
+
+3.1 SAFE
+--------
+Definition  : The client requests no state change on the server.
+RFC Section : RFC 9110, Section 9.2.1 (referenced by RFC 10008)
+
+Because QUERY is safe:
+  - Clients can fire QUERY requests without user confirmation.
+  - Prefetch or preload is valid (e.g., browsers can prefetch QUERY responses).
+  - Logging, analytics, and instrumentation triggered by QUERY are side effects that should not have visible, durable consequences to the caller.
+
+IMPORTANT: "Safe" is a semantic contract with the caller, not a server enforcement mechanism. A server COULD store a side effect on a QUERY endpoint (e.g., logging every query). The spec considers this acceptable for observational/metering purposes. However, a QUERY endpoint that mutates core application state violates the contract and is a misuse of the method.
+
+3.2 IDEMPOTENT
+--------------
+Definition  : Repeating an identical QUERY any number of times produces the same result as making it once.
+RFC Section : RFC 9110, Section 9.2.2 (referenced by RFC 10008)
+
+Because QUERY is idempotent:
+  - HTTP clients can AUTOMATICALLY retry a QUERY after a connection drop, timeout, or transient failure — without any application-level coordination.
+  - Load balancers can retry QUERY requests to a different backend node after a node failure.
+  - Proxies and CDNs can replay QUERY requests when reconstructing a lost connection, without risk of double-writes.
+
+This is the most practically valuable property. It is what POST /search permanently lacks and why implementing retry logic for search endpoints always required extra application plumbing (idempotency keys, client-side deduplication).
+
+3.3 CACHEABLE
+-------------
+Definition  : Responses to QUERY can be stored and reused by caches.
+RFC Section : RFC 10008, Section 2.7
+
+Because QUERY is cacheable:
+  - CDNs, reverse proxies (Nginx, Varnish), and API gateways can cache QUERY responses just as they cache GET responses.
+  - Identical queries from different users can be served from cache without hitting the origin.
+  - Cache lifetime is governed by standard HTTP caching headers (Cache-Control, Expires, ETag, Last-Modified).
+
+Critical difference from GET caching:
+  The cache key for a QUERY response MUST incorporate the request body, not just the URI. This is because two requests to the same URI with different bodies are asking different questions and must not share a cache entry. See Section 8 for full caching semantics.
+
+3.4 REQUEST BODY EXPECTED
+--------------------------
+Unlike GET, QUERY is explicitly designed to carry a request body.
+The body is the query. Its media type defines the query format.
+
+  - Content-Type is REQUIRED. RFC 10008 states servers MUST fail the request if Content-Type is absent or inconsistent with the body content.
+  - Content-Length or Transfer-Encoding must be present per normal HTTP rules.
+  - The body can be in any media type the server advertises via Accept-Query.
+
+
+================================================================================
+4. QUERY vs GET vs POST
+================================================================================
+| Property                                 | GET                              | QUERY                                | POST                             |
+| -----------------------------------------| -------------------------------- | ------------------------------------ | ---------------------------------|
+| Safe                                     | ✅ Yes                           | ✅ Yes                              | ❌ No guarantee                  |
+| Idempotent                               | ✅ Yes                           | ✅ Yes                              | ❌ No guarantee                  |
+| Cacheable                                | ✅ Yes                           | ✅ Yes                              | ⚠️ Limited*                      |
+| Request Body                             | No defined semantics             | Expected (the body is the query)     | Expected                          |
+| Cache Key                                | URI only                         | URI + request body                   | Not applicable                    |
+| Automatic Retry by Proxies               | ✅ Yes                           | ✅ Yes                              | ❌ Generally No                  |
+| Query Size Limit                         | URL length limit (~8 KB typical) | Request body limit (typically MBs)   | Request body limit (typically MBs)|
+| Sensitive Query Data in Logs             | ❌ Yes (URL is commonly logged)  | ✅ No (body usually not logged)     | ✅ No (body usually not logged)  |
+| Semantically Clear for Read-only Queries | ✅ Yes                           | ✅ Yes                              | ❌ No                            |
+| Response is a Resource Representation?   | ✅ Yes                           | ❌ No (returns query results)       | ⚠️ Depends                       |
+
+* POST responses are cacheable only when the server includes explicit freshness headers + Content-Location matching the target URI, and even then only for future GET/HEAD requests — not for future POST requests with the same body.
+
+================================================================================
+5. WIRE FORMAT AND SYNTAX
+================================================================================
+
+5.1 REQUEST FORMAT
+------------------
+
+  QUERY <request-target> HTTP/<version>
+  Host: <host>
+  Content-Type: <query-media-type>
+  Content-Length: <body-length-in-bytes>
+  Accept: <desired-response-media-type>
+  [Other standard headers: Authorization, Accept-Encoding, etc.]
+  <blank line>
+  <query body>
+
+Example — JSON filter body:
+
+  QUERY /api/v1/products HTTP/1.1
+  Host: shop.example.com
+  Content-Type: application/json
+  Content-Length: 112
+  Accept: application/json
+  Authorization: Bearer eyJhbGc...
+
+  {
+    "category": "electronics",
+    "price_range": { "min": 1000, "max": 50000 },
+    "in_stock": true,
+    "sort": "price_asc",
+    "limit": 20
+  }
+
+Example — JSONPath query body:
+
+  QUERY /errata.json HTTP/1.1
+  Host: example.org
+  Content-Type: application/jsonpath
+  Accept: application/json
+
+  $..[?@.errata_status_code=="Rejected" && @.submit_date>"2024"]["doc-id"]
+
+Example — SQL query body:
+
+  QUERY /data/employees HTTP/1.1
+  Host: internal.example.com
+  Content-Type: application/sql
+  Accept: application/json
+
+  SELECT id, name, department FROM employees
+  WHERE hire_date > '2023-01-01'
+  ORDER BY name ASC
+  LIMIT 100;
+
+Example — Form-encoded body:
+
+  QUERY /search HTTP/1.1
+  Host: api.example.com
+  Content-Type: application/x-www-form-urlencoded
+  Accept: application/json
+
+  q=java+backend&location=bangalore&experience=3&sort=-posted_date
+
+5.2 RESPONSE FORMAT
+-------------------
+
+Success response:
+
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+  Content-Length: <n>
+  Cache-Control: max-age=300
+  ETag: "abc123def456"
+  Accept-Query: "application/json", "application/jsonpath", "application/sql"
+
+  { "results": [...], "total": 47 }
+
+Stored query redirect (server saves the query for later retrieval):
+
+  HTTP/1.1 303 See Other
+  Location: /stored-queries/q-7f3a91b
+  Content-Type: text/plain
+
+  See stored query at "/stored-queries/q-7f3a91b"
+
+Content-Location pointing to retrievable result:
+
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+  Content-Location: /contacts/query-results/r-4ab23c
+  Accept-Query: "application/json"
+
+  { ... results ... }
+
+Error — unsupported media type:
+
+  HTTP/1.1 415 Unsupported Media Type
+  Accept-Query: "application/json", "application/jsonpath"
+
+Error — missing Content-Type:
+
+  HTTP/1.1 400 Bad Request
+
+  Content-Type header is required for QUERY requests.
+
+Error — method not supported on this resource:
+
+  HTTP/1.1 405 Method Not Allowed
+  Allow: GET, POST
+
+================================================================================
+6. THE ACCEPT-QUERY RESPONSE HEADER
+================================================================================
+RFC 10008 introduces a new response header: Accept-Query.
+
+Purpose:
+  Allows the server to advertise which query media types it accepts on a given resource. This is the discovery mechanism for QUERY support.
+
+Format:
+  Accept-Query is a Structured Field (RFC 8941) containing a list of media type strings.
+
+  Accept-Query: "application/json"
+  Accept-Query: "application/jsonpath", "application/sql;charset=UTF-8"
+  Accept-Query: "application/xslt+xml", "application/x-www-form-urlencoded"
+
+When it appears:
+  - In a 200 OK response to a successful QUERY request.
+  - In a 405 Method Not Allowed response, indicating supported methods.
+  - In a 415 Unsupported Media Type response, advertising what IS accepted.
+  - In a standard GET response to enable pre-discovery before sending QUERY.
+
+Practical use:
+  A client can GET a resource, check for Accept-Query in the response, and only then send a QUERY with an appropriate Content-Type. This avoids trial-and-error 415 responses.
+
+  GET /contacts HTTP/1.1
+  Host: api.example.com
+
+  HTTP/1.1 200 OK
+  Content-Type: application/json
+  Accept-Query: "application/json", "application/jsonpath"
+
+  { "info": "Contacts resource. Use QUERY to filter." }
+
+================================================================================
+7. SUPPORTED QUERY MEDIA TYPES
+================================================================================
+RFC 10008 is deliberately format-agnostic. Any media type can serve as a query body, provided it has "appropriate query semantics." The spec's examples:
+
+  application/json            — Arbitrary JSON filter/query structures
+  application/jsonpath        — JSONPath expressions (RFC 9535)
+  application/sql             — SQL SELECT statements
+  application/xslt+xml        — XSLT transformations
+  application/x-www-form-urlencoded — Traditional form data (key=value&...)
+  application/graphql         — GraphQL query language (common in practice)
+  application/sparql-query    — SPARQL queries for RDF data
+
+The server declares what it accepts via Accept-Query. Clients use Content-Type to indicate the format they are sending. A mismatch results in 415 Unsupported Media Type.
+
+================================================================================
+8. CACHING SEMANTICS
+================================================================================
+
+8.1 BASIC RULE
+--------------
+A QUERY response is cacheable. The cache MUST use a key that includes:
+  1. The HTTP method (QUERY)
+  2. The target URI (scheme + authority + path + query string if any)
+  3. The request body content
+  4. Relevant request headers that affect response content  (Accept, Accept-Language, Accept-Encoding, Authorization, etc.)
+
+RFC 10008, Section 2.7:
+  "A cache that implements caching of QUERY responses MUST incorporate the request content and any content-related header fields into the cache key."
+
+8.2 WHY THIS IS HARDER THAN GET CACHING
+----------------------------------------
+For GET, the cache key is essentially the URL (plus Vary headers).
+For QUERY, the cache must buffer and hash the entire request body before it can determine whether a cached response exists. This is more expensive and requires the cache to be body-aware.
+
+A typical cache key computation for QUERY:
+
+  cache_key = SHA256(
+    "QUERY"           +
+    target_uri        +
+    request_body_hash +
+    sorted_vary_headers
+  )
+
+8.3 BODY NORMALIZATION
+-----------------------
+Caches MAY normalize request bodies to improve hit rates:
+  - Strip Content-Encoding before hashing (decompress, then hash)
+  - For JSON: normalize whitespace, sort keys (if semantically equivalent)
+  - For media types with +json suffix: apply JSON normalization rules
+
+RISK: Aggressive normalization can produce false positives — two different queries that normalize to the same string receive the same cached response.
+This is a correctness bug, not just a performance issue. See Section 13.
+
+8.4 CONDITIONAL REQUESTS AND EQUIVALENCE RESOURCES
+----------------------------------------------------
+RFC 10008 introduces the concept of an "equivalent resource": a hypothetical resource derived by incorporating the QUERY body into the target URI. Conditional request headers (ETag, If-None-Match, Last-Modified, If-Modified-Since) operate against this equivalent resource.
+
+This means a client can:
+  1. Send a QUERY, receive ETag: "v1"
+  2. Later send the same QUERY with If-None-Match: "v1"
+  3. If the data is unchanged, receive 304 Not Modified — saving bandwidth.
+
+8.5 CONTENT-LOCATION vs LOCATION IN RESPONSES
+----------------------------------------------
+These two headers have distinct meanings for QUERY:
+
+  Content-Location: /contacts/results/r-42
+    Points to a URI where the QUERY RESULTS are stored and can be fetched with a plain GET request later. The results are already computed; this URI retrieves them without re-running the query.
+
+  Location: /contacts/stored-queries/sq-99
+    Points to a URI representing the QUERY ITSELF. GETting that URI will re-run the stored query with the current data. Results may differ from the original response if the data changed.
+
+8.6 REDIRECT BEHAVIOR
+----------------------
+Important difference from POST redirect handling:
+
+  For POST: RFC 9110 Sections 15.4.2 and 15.4.3 allow (historically) that a 301 or 302 redirect causes clients to reissue as GET.
+  For QUERY: These POST exceptions do NOT apply. A 301 or 302 means resend the same QUERY to the new URL — still as QUERY, not converted to GET.
+  Only a 303 See Other explicitly redirects to fetch the result with GET.
+
+================================================================================
+9. CONDITIONAL REQUESTS AND ETAGS
+================================================================================
+Full conditional request workflow with QUERY:
+
+  Step 1: Initial QUERY
+  ----------------------
+  QUERY /api/products HTTP/1.1
+  Host: example.com
+  Content-Type: application/json
+
+  {"category": "laptops", "min_ram": 16}
+
+  HTTP/1.1 200 OK
+  ETag: "q-etag-xf78a21"
+  Cache-Control: max-age=300
+  Content-Type: application/json
+
+  { "results": [...12 laptops...] }
+
+  Step 2: Conditional Re-Query (check if data changed)
+  -----------------------------------------------------
+  QUERY /api/products HTTP/1.1
+  Host: example.com
+  Content-Type: application/json
+  If-None-Match: "q-etag-xf78a21"
+
+  {"category": "laptops", "min_ram": 16}
+
+  HTTP/1.1 304 Not Modified
+  ETag: "q-etag-xf78a21"
+
+  (No body — cached response is still valid. Client uses its local copy.)
+
+================================================================================
+10. REDIRECTS AND STORED QUERIES
+================================================================================
+RFC 10008 Appendix A documents two advanced patterns:
+
+PATTERN 1: Server stores and returns query results
+--------------------------------------------------
+  QUERY /contacts HTTP/1.1
+  Host: api.example.com
+  Content-Type: application/json
+
+  {"filter": {"city": "Bangalore"}}
+
+  HTTP/1.1 200 OK
+  Content-Location: /contacts/results/r-1234
+  Content-Type: application/json
+
+  { "results": [...] }
+
+  Now the client can GET /contacts/results/r-1234 directly to retrieve the same results without resending the body.
+
+PATTERN 2: Server stores the query itself (not the results)
+----------------------------------------------------------
+  QUERY /contacts HTTP/1.1
+  Host: api.example.com
+  Content-Type: application/json
+
+  {"filter": {"city": "Bangalore"}}
+
+  HTTP/1.1 303 See Other
+  Location: /contacts/stored-queries/sq-42
+
+  See stored query at "/contacts/stored-queries/sq-42".
+
+  Now the client can GET /contacts/stored-queries/sq-42 to re-execute the query with fresh data any time. This is useful for bookmarking or sharing complex queries.
+
+================================================================================
+11. NAMING HISTORY (WHY NOT SEARCH?)
+================================================================================
+The QUERY method went through multiple names over 11 years of standardization:
+
+  2015 : First proposed as draft-snell-search-method (SEARCH method)
+  2019 : Asbjorn Ulsberg revived the concept at the HTTP Workshop
+  2021 : IETF httpbis working group adopted it as draft-ietf-httpbis-safe-method-w-body, still named SEARCH
+  Nov 2021: Renamed to QUERY
+
+Why the rename? RFC 10008 Appendix B explains:
+  The IANA HTTP Method Registry already had three safe, idempotent methods:
+  PROPFIND, REPORT, and SEARCH — all from the WebDAV effort, "about which many have mixed feelings," and all using generic XML request formats.
+
+  QUERY was chosen because:
+  1. It captures the relation with the URI's query component.
+  2. It avoids WebDAV association and XML-only assumptions.
+  3. It describes a generic read-only operation, not a specific search use case.
+
+Timeline to standardization:
+  2015     : First individual draft
+  2019     : Revived at HTTP Workshop
+  Mar 2021 : Adopted by httpbis WG
+  Nov 2021 : Renamed SEARCH → QUERY
+  Nov 2025 : Final draft (draft-ietf-httpbis-safe-method-w-body-14)
+  Nov 2025 : IESG approved
+  Jun 2026 : Published as RFC 10008
+
+11 years from first draft to Proposed Standard. HTTP moves deliberately.
+
+================================================================================
+12. FRAMEWORK AND RUNTIME SUPPORT (JULY 2026)
+================================================================================
+| Stack / Framework  | Status|
+| Node.js            | ✅ Native support. QUERY parsing via llhttp 9.2.0 landed in Node.js 21.7.2 and Node.js 22+. `req.method === "QUERY"` works.|
+| Express            | ✅ Works on QUERY-capable Node.js versions. TypeScript types are not available yet.|
+| Fastify            | ⚙️ Opt-in support.<br>`fastify.addHttpMethod("QUERY", { hasBody: true })`|
+| Go (`net/http`)    | ✅ No `MethodQuery` constant, but arbitrary HTTP method strings are supported.<br>`http.NewRequest("QUERY", url, body)` works today.|
+| Spring Framework   | ❌ Not supported yet. PR #34993 is still open (marked blocked).@RequestMapping does not support `RequestMethod.QUERY`.Workaround: Implement a Servlet Filter (see Section 14.3).|
+| ASP.NET Core       | ✅ .NET 11 Preview 4 adds native QUERY support and includes it in OpenAPI generation.|
+| OpenAPI            | ✅ OpenAPI 3.2.0 (September 2025) introduced first-class `query` operations.|
+| curl               | ✅ Supported.<br>`curl -X QUERY --data '' -H "Content-Type: application/json"`|
+| Browsers (`fetch`) | ⚠️ Accepts `"QUERY"` as a method string, but always triggers a CORS preflight, since QUERY is not a CORS-safelisted HTTP method.|
+| Ruby on Rails      | ⚠️ Action Pack currently rejects QUERY. There is an active proposal under discussion in the Rails community.|
+| Cloudflare / Akamai| ⚠️ No confirmed CDN-level QUERY caching support yet, despite RFC co-authors being affiliated with both companies.|
+
+
+================================================================================
+13. SECURITY CONSIDERATIONS
+================================================================================
+13.1 CACHE POISONING
+---------------------
+If a cache incorrectly keys on URI alone (ignoring the request body), an attacker can poison the cache for all users of that resource.
+
+Attack scenario:
+  1. Attacker sends: QUERY /search with body {"q": "<script>evil()</script>"}
+  2. Malformed cache stores this against the key: /search
+  3. Next legitimate user's QUERY /search returns attacker's malicious response
+  4. Result: Stored XSS delivered through cache without any app vulnerability
+
+Mitigation: Cache key MUST include a full hash of the request body.
+
+13.2 BODY NORMALIZATION FALSE POSITIVES
+-----------------------------------------
+Caches that normalize request bodies (e.g., sort JSON keys) can produce false positive cache hits where two distinct queries are mistakenly served the same cached response.
+
+13.3 WAF AND IDS INSPECTION GAPS
+----------------------------------
+WAFs and IDS rules written before June 2026 may not include QUERY in their method allowlists. Attackers can exploit this gap to bypass injection detection by sending SQLi or XSS payloads in a QUERY body that the WAF body-inspects only for POST/PUT/PATCH.
+
+Test: Compare WAF behavior for the same payload over POST vs QUERY.
+
+13.4 CSRF MIDDLEWARE BLIND SPOTS
+----------------------------------
+CSRF protections typically only check POST, PUT, DELETE, PATCH.
+If a QUERY endpoint has an unintended side effect and the CSRF middleware does not include QUERY in its protection scope, that endpoint is vulnerable. QUERY marked "safe" in the spec is a semantic contract — a misbehaving server can still have side effects on QUERY endpoints.
+
+13.5 CORS AND BROWSER PREFLIGHT
+---------------------------------
+QUERY is NOT a CORS-safelisted method.
+Every cross-origin QUERY from browser JavaScript triggers an OPTIONS preflight.
+This is correct behavior per both RFC 10008 and the Fetch specification.
+Servers must configure their CORS policy to explicitly include QUERY in Access-Control-Allow-Methods.
+
+  Access-Control-Allow-Methods: GET, POST, QUERY
+  Access-Control-Allow-Headers: Content-Type, Authorization
+
+13.6 REQUEST SMUGGLING RISK
+-----------------------------
+Any new method that different layers (CDN, load balancer, origin) handle differently is a candidate for HTTP request smuggling attacks. With QUERY support still rolling out, front-end and back-end components may parse QUERY requests inconsistently. Monitor for divergent behavior between edge and origin responses to the same QUERY request.
+
+================================================================================
+14. JAVA IMPLEMENTATION GUIDE
+================================================================================
+
+As of July 2026, Spring Framework does not natively support QUERY via @RequestMapping (PR #34993 is open but not merged). The following examples cover:
+
+  - Client-side: how to SEND a QUERY request from Java
+  - Server-side: how to RECEIVE and route QUERY requests in Java
+
+All examples compile against Java 11+ unless noted.
+
+--------------------------------------------------------------------------------
+14.1 APPROACH 1 — Raw HttpURLConnection (Java 8+)
+--------------------------------------------------------------------------------
+Best for: Legacy codebases, Android, minimal dependencies.
+
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+
+/
+ * Demonstrates sending an HTTP QUERY request using the standard Java
+ * HttpURLConnection API (available since Java 1.1, works in Java 8+).
+ *
+ * HttpURLConnection does not have QUERY in its default allowed methods,
+ * so we must use reflection to bypass the method whitelist check.
+ */
+public class HttpQueryConnectionExample {
+
+    // -------------------------------------------------------------------------
+    // Helper: Bypass HttpURLConnection's method restriction via reflection.
+    // By default, HttpURLConnection only allows standard methods.
+    // We patch the 'method' field directly to send custom method names.
+    // -------------------------------------------------------------------------
+    private static void setCustomMethod(HttpURLConnection conn, String method)
+            throws Exception {
+        // Try setting directly first (works in some JVM implementations)
+        try {
+            conn.setRequestMethod(method);
+        } catch (ProtocolException e) {
+            // If rejected, bypass via reflection on the private 'method' field
+            java.lang.reflect.Field methodField =
+                HttpURLConnection.class.getDeclaredField("method");
+            methodField.setAccessible(true);
+            methodField.set(conn, method);
+        }
+    }
+
+    /**
+     * Sends an HTTP QUERY request with a JSON body.
+     *
+     * @param urlStr   The target URL (e.g., "http://localhost:8080/api/contacts")
+     * @param jsonBody The JSON query body
+     * @return         The response body as a String
+     */
+    public static String sendQueryRequest(String urlStr, String jsonBody)
+            throws Exception {
+        URL url = new URL(urlStr);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+        // Set the QUERY method — requires reflection bypass
+        setCustomMethod(conn, "QUERY");
+
+        // Set required headers
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Accept", "application/json");
+        conn.setDoOutput(true);         // Allow sending a request body
+        conn.setDoInput(true);          // Allow reading the response body
+        conn.setConnectTimeout(5_000);  // 5 second connection timeout
+        conn.setReadTimeout(30_000);    // 30 second read timeout
+
+        // Write the query body
+        byte[] bodyBytes = jsonBody.getBytes(StandardCharsets.UTF_8);
+        conn.setFixedLengthStreamingMode(bodyBytes.length);
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(bodyBytes);
+            os.flush();
+        }
+
+        // Read the response
+        int status = conn.getResponseCode();
+        System.out.println("Response Status : " + status);
+        System.out.println("Accept-Query    : " +
+            conn.getHeaderField("Accept-Query"));
+
+        InputStream responseStream = (status >= 200 && status < 300)
+            ? conn.getInputStream()
+            : conn.getErrorStream();
+
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(responseStream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    public static void main(String[] args) throws Exception {
+        String queryBody = """
+                {
+                    "filter": {
+                        "status": "active",
+                        "city": "Bengaluru",
+                        "joined_after": "2024-01-01"
+                    },
+                    "sort": "-created_at",
+                    "limit": 50
+                }
+                """;
+
+        String result = sendQueryRequest(
+            "http://localhost:8080/api/contacts",
+            queryBody
+        );
+        System.out.println("Response Body:");
+        System.out.println(result);
+    }
+}
+
+--------------------------------------------------------------------------------
+14.2 APPROACH 2 — Java 11+ HttpClient
+--------------------------------------------------------------------------------
+Best for: Modern Java projects. Cleaner API, built-in async support.
+
+import java.net.URI;
+import java.net.http.*;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
+
+/**
+ * Demonstrates sending an HTTP QUERY request using java.net.http.HttpClient,
+ * introduced in Java 11.
+ *
+ * Unlike HttpURLConnection, HttpClient DOES allow custom HTTP methods
+ * without reflection hacks, as long as they are not the empty string.
+ * The QUERY method string is accepted directly.
+ */
+public class HttpQueryClientExample {
+
+    // Reuse a single HttpClient instance across requests (thread-safe)
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+        .version(HttpClient.Version.HTTP_1_1)    // Force HTTP/1.1 for compatibility
+        .connectTimeout(Duration.ofSeconds(5))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
+
+    /**
+     * Sends a synchronous HTTP QUERY request with a JSON body.
+     *
+     * @param uri      Target URI
+     * @param jsonBody JSON query body string
+     * @return         HttpResponse containing status, headers, and body
+     */
+    public static HttpResponse<String> sendQuery(String uri, String jsonBody)
+            throws Exception {
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(uri))
+            // "method" accepts any valid HTTP method string, including "QUERY"
+            .method("QUERY", BodyPublishers.ofString(jsonBody))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .timeout(Duration.ofSeconds(30))
+            .build();
+
+        return HTTP_CLIENT.send(request, BodyHandlers.ofString());
+    }
+
+    /**
+     * Sends an asynchronous HTTP QUERY request.
+     * Returns a CompletableFuture that resolves to the response.
+     */
+    public static java.util.concurrent.CompletableFuture<HttpResponse<String>>
+            sendQueryAsync(String uri, String jsonBody) {
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(uri))
+            .method("QUERY", BodyPublishers.ofString(jsonBody))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .timeout(Duration.ofSeconds(30))
+            .build();
+
+        return HTTP_CLIENT.sendAsync(request, BodyHandlers.ofString());
+    }
+
+    public static void main(String[] args) throws Exception {
+        String jsonQuery = """
+                {
+                    "filter": {
+                        "category": "laptops",
+                        "min_ram_gb": 16,
+                        "in_stock": true
+                    },
+                    "sort": "price_asc",
+                    "limit": 20,
+                    "page": 1
+                }
+                """;
+
+        // --- Synchronous usage ---
+        System.out.println("=== Synchronous QUERY ===");
+        HttpResponse<String> response = sendQuery(
+            "http://localhost:8080/api/products",
+            jsonQuery
+        );
+        System.out.println("Status  : " + response.statusCode());
+        System.out.println("Accept-Query: " +
+            response.headers().firstValue("Accept-Query").orElse("not present"));
+        System.out.println("Body    : " + response.body());
+
+        // --- Asynchronous usage ---
+        System.out.println("\n=== Asynchronous QUERY ===");
+        sendQueryAsync("http://localhost:8080/api/products", jsonQuery)
+            .thenAccept(r -> {
+                System.out.println("Async Status: " + r.statusCode());
+                System.out.println("Async Body  : " + r.body());
+            })
+            .join(); // Wait for demo purposes
+    }
+}
+
+--------------------------------------------------------------------------------
+14.3 APPROACH 3 — Spring Boot Server-Side Workaround (Pre-Official Support)
+--------------------------------------------------------------------------------
+Since Spring Framework has not merged QUERY support (PR #34993 still open), the standard @RequestMapping(method = RequestMethod.QUERY) does not compile.
+
+Workaround: Use a javax.servlet.Filter (or jakarta.servlet.Filter in Spring 6+) to intercept QUERY requests before they reach the DispatcherServlet.
+
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+// ============================================================
+// 1. Spring Boot Application Entry Point
+// ============================================================
+@SpringBootApplication
+public class HttpQueryServerApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(HttpQueryServerApplication.class, args);
+    }
+}
+
+// ============================================================
+// 2. Servlet Filter to Intercept QUERY Requests
+//    Registered as a @Component — Spring auto-registers it
+// ============================================================
+// @Component  <-- annotate this in your actual Spring project
+class HttpQueryMethodFilter implements Filter {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response,
+                         FilterChain chain) throws IOException, ServletException {
+
+        HttpServletRequest httpReq = (HttpServletRequest) request;
+        HttpServletResponse httpRes = (HttpServletResponse) response;
+
+        if ("QUERY".equalsIgnoreCase(httpReq.getMethod())) {
+            // Delegate to our query handler
+            handleQueryRequest(httpReq, httpRes);
+        } else {
+            // Pass non-QUERY requests through normally
+            chain.doFilter(request, response);
+        }
+    }
+
+    private void handleQueryRequest(HttpServletRequest req,
+                                     HttpServletResponse res)
+            throws IOException {
+
+        String path = req.getRequestURI();
+        String contentType = req.getContentType();
+
+        // Validate Content-Type is present (RFC 10008 requirement)
+        if (contentType == null || contentType.isEmpty()) {
+            res.setStatus(HttpStatus.BAD_REQUEST.value());
+            res.setContentType("text/plain");
+            res.getWriter().write(
+                "QUERY requests require a Content-Type header per RFC 10008."
+            );
+            return;
+        }
+
+        // Read the request body (this is the query)
+        String queryBody;
+        try (BufferedReader reader = req.getReader()) {
+            queryBody = reader.lines().collect(Collectors.joining("\n"));
+        }
+
+        // Route to appropriate handler based on path
+        if (path.startsWith("/api/contacts")) {
+            handleContactsQuery(queryBody, contentType, res);
+        } else if (path.startsWith("/api/products")) {
+            handleProductsQuery(queryBody, contentType, res);
+        } else {
+            // Resource does not support QUERY
+            res.setStatus(HttpStatus.METHOD_NOT_ALLOWED.value());
+            res.setHeader("Allow", "GET, POST");
+            res.getWriter().write("QUERY not supported on " + path);
+        }
+    }
+
+    private void handleContactsQuery(String body, String contentType,
+                                      HttpServletResponse res)
+            throws IOException {
+
+        // Parse the JSON query body
+        Map<?, ?> query = objectMapper.readValue(body, Map.class);
+
+        // Execute query logic (simulated here)
+        List<Map<String, String>> results = simulateContactSearch(query);
+
+        Map<String, Object> responseData = new LinkedHashMap<>();
+        responseData.put("total", results.size());
+        responseData.put("results", results);
+
+        // Write response with QUERY-specific headers
+        res.setStatus(HttpStatus.OK.value());
+        res.setContentType("application/json;charset=UTF-8");
+        // Advertise supported query formats on this resource
+        res.setHeader("Accept-Query",
+            "\"application/json\", \"application/jsonpath\"");
+        // Cache guidance
+        res.setHeader("Cache-Control", "max-age=300");
+
+        objectMapper.writeValue(res.getWriter(), responseData);
+    }
+
+    private void handleProductsQuery(String body, String contentType,
+                                      HttpServletResponse res)
+            throws IOException {
+        Map<?, ?> query = objectMapper.readValue(body, Map.class);
+        List<Map<String, Object>> results = simulateProductSearch(query);
+
+        Map<String, Object> responseData = new LinkedHashMap<>();
+        responseData.put("total", results.size());
+        responseData.put("results", results);
+
+        res.setStatus(HttpStatus.OK.value());
+        res.setContentType("application/json;charset=UTF-8");
+        res.setHeader("Accept-Query",
+            "\"application/json\", \"application/sql\"");
+        res.setHeader("Cache-Control", "max-age=60");
+
+        objectMapper.writeValue(res.getWriter(), responseData);
+    }
+
+    // Simulated data access — replace with real DB/service calls
+    private List<Map<String, String>> simulateContactSearch(Map<?, ?> query) {
+        return List.of(
+            Map.of("id", "1", "name", "Alice", "city", "Bengaluru"),
+            Map.of("id", "2", "name", "Bob",   "city", "Bengaluru")
+        );
+    }
+
+    private List<Map<String, Object>> simulateProductSearch(Map<?, ?> query) {
+        return List.of(
+            Map.of("id", "101", "name", "ThinkPad X1", "price", 89999),
+            Map.of("id", "102", "name", "Dell XPS 15", "price", 112000)
+        );
+    }
+}
+
+// ============================================================
+// 3. Regular Spring REST Controller (for non-QUERY endpoints)
+// ============================================================
+@RestController
+@RequestMapping("/api")
+class ApiController {
+
+    @GetMapping("/contacts")
+    public ResponseEntity<Map<String, Object>> listContacts() {
+        return ResponseEntity.ok()
+            .header("Accept-Query", "\"application/json\"")
+            .body(Map.of("message", "Use QUERY method to filter contacts"));
+    }
+
+    @GetMapping("/products")
+    public ResponseEntity<Map<String, Object>> listProducts() {
+        return ResponseEntity.ok()
+            .header("Accept-Query", "\"application/json\", \"application/sql\"")
+            .body(Map.of("message", "Use QUERY method to search products"));
+    }
+}
+
+--------------------------------------------------------------------------------
+14.4 APPROACH 4 — QUERY Client Utility Class
+--------------------------------------------------------------------------------
+A production-grade utility wrapping Java 11 HttpClient for reuse.
+
+import java.net.*;
+import java.net.http.*;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
+import java.util.*;
+
+/**
+ * HttpQueryClient — A production-grade utility for sending HTTP QUERY requests.
+ *
+ * Features:
+ *  - Fluent builder API
+ *  - Configurable timeouts
+ *  - Custom header support
+ *  - Automatic Accept-Query header discovery
+ *  - Sync and async variants
+ */
+public class HttpQueryClient {
+
+    private final HttpClient client;
+    private final Duration timeout;
+
+    // -------------------------------------------------------------------------
+    // Builder
+    // -------------------------------------------------------------------------
+    public static class Builder {
+        private Duration connectTimeout = Duration.ofSeconds(5);
+        private Duration requestTimeout = Duration.ofSeconds(30);
+        private HttpClient.Redirect redirect = HttpClient.Redirect.NORMAL;
+
+        public Builder connectTimeout(Duration d)  { connectTimeout = d; return this; }
+        public Builder requestTimeout(Duration d)  { requestTimeout = d; return this; }
+        public Builder noRedirects()               {
+            redirect = HttpClient.Redirect.NEVER;
+            return this;
+        }
+
+        public HttpQueryClient build() {
+            HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(connectTimeout)
+                .followRedirects(redirect)
+                .build();
+            return new HttpQueryClient(httpClient, requestTimeout);
+        }
+    }
+
+    public static Builder newBuilder() { return new Builder(); }
+
+    private HttpQueryClient(HttpClient client, Duration timeout) {
+        this.client  = client;
+        this.timeout = timeout;
+    }
+
+    // -------------------------------------------------------------------------
+    // QueryRequest — holds all parameters for a QUERY call
+    // -------------------------------------------------------------------------
+    public static class QueryRequest {
+        private final String uri;
+        private final String body;
+        private final String contentType;
+        private final String accept;
+        private final Map<String, String> extraHeaders;
+
+        private QueryRequest(String uri, String body, String contentType,
+                              String accept, Map<String, String> extraHeaders) {
+            this.uri          = uri;
+            this.body         = body;
+            this.contentType  = contentType;
+            this.accept       = accept;
+            this.extraHeaders = extraHeaders;
+        }
+
+        public static class Builder {
+            private String uri;
+            private String body;
+            private String contentType = "application/json";
+            private String accept      = "application/json";
+            private final Map<String, String> headers = new LinkedHashMap<>();
+
+            public Builder uri(String uri)                      { this.uri = uri; return this; }
+            public Builder jsonBody(String json)                { this.body = json; return this; }
+            public Builder sqlBody(String sql)                  {
+                this.body = sql;
+                this.contentType = "application/sql";
+                return this;
+            }
+            public Builder formBody(String formEncoded)         {
+                this.body = formEncoded;
+                this.contentType = "application/x-www-form-urlencoded";
+                return this;
+            }
+            public Builder contentType(String ct)               { this.contentType = ct; return this; }
+            public Builder accept(String accept)                { this.accept = accept; return this; }
+            public Builder header(String name, String value)    { headers.put(name, value); return this; }
+            public Builder bearer(String token)                 {
+                headers.put("Authorization", "Bearer " + token);
+                return this;
+            }
+
+            public QueryRequest build() {
+                Objects.requireNonNull(uri,  "URI is required");
+                Objects.requireNonNull(body, "Query body is required");
+                return new QueryRequest(uri, body, contentType, accept,
+                    Collections.unmodifiableMap(headers));
+            }
+        }
+
+        public static Builder builder() { return new Builder(); }
+    }
+
+    // -------------------------------------------------------------------------
+    // QueryResponse — wraps the HTTP response for easier consumption
+    // -------------------------------------------------------------------------
+    public record QueryResponse(
+        int statusCode,
+        String body,
+        List<String> acceptedQueryTypes,
+        Optional<String> contentLocation,
+        Optional<String> location,
+        Optional<String> eTag
+    ) {
+        public boolean isSuccess() {
+            return statusCode >= 200 && statusCode < 300;
+        }
+        public boolean isNotModified() {
+            return statusCode == 304;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Core: Send synchronous QUERY request
+    // -------------------------------------------------------------------------
+    public QueryResponse query(QueryRequest req) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+            .uri(URI.create(req.uri))
+            .method("QUERY", BodyPublishers.ofString(req.body))
+            .header("Content-Type", req.contentType)
+            .header("Accept", req.accept)
+            .timeout(timeout);
+
+        req.extraHeaders.forEach(builder::header);
+
+        HttpResponse<String> resp = client.send(
+            builder.build(), BodyHandlers.ofString()
+        );
+
+        List<String> acceptedTypes = resp.headers()
+            .allValues("Accept-Query");
+
+        return new QueryResponse(
+            resp.statusCode(),
+            resp.body(),
+            acceptedTypes,
+            resp.headers().firstValue("Content-Location"),
+            resp.headers().firstValue("Location"),
+            resp.headers().firstValue("ETag")
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Core: Send asynchronous QUERY request
+    // -------------------------------------------------------------------------
+    public java.util.concurrent.CompletableFuture<QueryResponse>
+            queryAsync(QueryRequest req) {
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+            .uri(URI.create(req.uri))
+            .method("QUERY", BodyPublishers.ofString(req.body))
+            .header("Content-Type", req.contentType)
+            .header("Accept", req.accept)
+            .timeout(timeout);
+
+        req.extraHeaders.forEach(builder::header);
+
+        return client
+            .sendAsync(builder.build(), BodyHandlers.ofString())
+            .thenApply(resp -> {
+                List<String> acceptedTypes = resp.headers().allValues("Accept-Query");
+                return new QueryResponse(
+                    resp.statusCode(),
+                    resp.body(),
+                    acceptedTypes,
+                    resp.headers().firstValue("Content-Location"),
+                    resp.headers().firstValue("Location"),
+                    resp.headers().firstValue("ETag")
+                );
+            });
+    }
+
+    // -------------------------------------------------------------------------
+    // Demo usage
+    // -------------------------------------------------------------------------
+    public static void main(String[] args) throws Exception {
+        HttpQueryClient queryClient = HttpQueryClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(3))
+            .requestTimeout(Duration.ofSeconds(20))
+            .build();
+
+        // Fluent request construction
+        QueryRequest.Builder reqBuilder = QueryRequest.builder()
+            .uri("http://localhost:8080/api/contacts")
+            .jsonBody("""
+                {
+                    "filter": {
+                        "status": "active",
+                        "department": "Engineering"
+                    },
+                    "limit": 25,
+                    "sort": "name_asc"
+                }
+                """)
+            .bearer("my-api-token");
+
+        QueryResponse response = queryClient.query(reqBuilder.build());
+
+        System.out.println("Status              : " + response.statusCode());
+        System.out.println("Success             : " + response.isSuccess());
+        System.out.println("Accepted Query Types: " + response.acceptedQueryTypes());
+        System.out.println("ETag                : " + response.eTag().orElse("none"));
+        System.out.println("Content-Location    : " + response.contentLocation().orElse("none"));
+        System.out.println("Body                : " + response.body());
+    }
+}
+
+--------------------------------------------------------------------------------
+14.5 APPROACH 5 — QUERY-Aware In-Memory Caching Wrapper
+--------------------------------------------------------------------------------
+Shows how to implement the RFC 10008 caching requirement: cache key must
+include the request body, not just the URI.
+
+import java.net.http.*;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.*;
+
+/**
+ * QueryCacheClient — Demonstrates RFC 10008-compliant caching for QUERY responses.
+ *
+ * Cache key = SHA-256 (method + URI + normalized request body)
+ * This correctly treats the same URI with different bodies as different entries.
+ *
+ * Note: This is an in-memory demo. Production use would integrate with Redis,
+ * Caffeine, Guava Cache, or a distributed cache.
+ */
+public class QueryCacheClient {
+
+    /** One cached entry: body + expiry time */
+    private record CacheEntry(String responseBody, Instant expiresAt) {
+        boolean isExpired() { return Instant.now().isAfter(expiresAt); }
+    }
+
+    // Simple in-memory cache: cacheKey -> CacheEntry
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final HttpClient httpClient          = HttpClient.newHttpClient();
+
+    /**
+     * Sends a QUERY request, returning cached response if available.
+     * Cache duration defaults to 5 minutes; respect Cache-Control: max-age if present.
+     */
+    public String queryWithCache(String uri, String jsonBody) throws Exception {
+        // Build the RFC 10008-compliant cache key
+        String cacheKey = buildCacheKey("QUERY", uri, jsonBody);
+
+        // Check cache
+        CacheEntry cached = cache.get(cacheKey);
+        if (cached != null && !cached.isExpired()) {
+            System.out.println("[CACHE HIT]  key=" + cacheKey.substring(0, 16) + "...");
+            return cached.responseBody();
+        }
+
+        System.out.println("[CACHE MISS] key=" + cacheKey.substring(0, 16) + "...");
+
+        // Cache miss — send QUERY to origin
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(uri))
+            .method("QUERY", BodyPublishers.ofString(jsonBody))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .build();
+
+        HttpResponse<String> response = httpClient.send(
+            request, BodyHandlers.ofString()
+        );
+
+        if (response.statusCode() == 200) {
+            // Extract max-age from Cache-Control header
+            Duration ttl = extractMaxAge(
+                response.headers().firstValue("Cache-Control").orElse("")
+            );
+            // Store in cache
+            cache.put(cacheKey, new CacheEntry(
+                response.body(),
+                Instant.now().plus(ttl)
+            ));
+        }
+
+        return response.body();
+    }
+
+    /**
+     * Builds a cache key per RFC 10008 Section 2.7:
+     * key incorporates the HTTP method, target URI, and request body.
+     */
+    private String buildCacheKey(String method, String uri, String body)
+            throws Exception {
+        // Normalize body: trim whitespace (minimal safe normalization)
+        String normalizedBody = body.trim();
+
+        String input = method + "|" + uri + "|" + normalizedBody;
+        MessageDigest sha = MessageDigest.getInstance("SHA-256");
+        byte[] hash = sha.digest(input.getBytes(StandardCharsets.UTF_8));
+
+        // Convert to hex string
+        StringBuilder hex = new StringBuilder();
+        for (byte b : hash) hex.append(String.format("%02x", b));
+        return hex.toString();
+    }
+
+    /** Parses max-age value from Cache-Control header. Defaults to 5 minutes. */
+    private Duration extractMaxAge(String cacheControl) {
+        if (cacheControl.contains("no-store") || cacheControl.contains("no-cache")) {
+            return Duration.ZERO;
+        }
+        for (String directive : cacheControl.split(",")) {
+            directive = directive.trim();
+            if (directive.startsWith("max-age=")) {
+                try {
+                    long seconds = Long.parseLong(directive.substring(8).trim());
+                    return Duration.ofSeconds(seconds);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return Duration.ofMinutes(5); // Default TTL
+    }
+
+    public static void main(String[] args) throws Exception {
+        QueryCacheClient client = new QueryCacheClient();
+
+        String body = """
+                {"filter": {"city": "Bengaluru"}, "limit": 10}
+                """;
+
+        System.out.println("=== First Call (cache miss) ===");
+        String r1 = client.queryWithCache("http://localhost:8080/api/contacts", body);
+        System.out.println("Response: " + r1);
+
+        System.out.println("\n=== Second Call — same body (cache hit) ===");
+        String r2 = client.queryWithCache("http://localhost:8080/api/contacts", body);
+        System.out.println("Response: " + r2);
+
+        System.out.println("\n=== Third Call — different body (different cache key) ===");
+        String body2 = """
+                {"filter": {"city": "Mumbai"}, "limit": 10}
+                """;
+        String r3 = client.queryWithCache("http://localhost:8080/api/contacts", body2);
+        System.out.println("Response: " + r3);
+    }
+}
+
+--------------------------------------------------------------------------------
+14.6 APPROACH 6 — Complete Spring Boot Server (Full Demo App)
+--------------------------------------------------------------------------------
+A complete, self-contained Spring Boot demo application that:
+  - Receives QUERY requests via a Filter
+  - Routes to a service layer
+  - Returns correct QUERY response headers
+  - Supports CORS for browser clients
+
+// File: QueryMethodDemoApp.java
+// Run with: mvn spring-boot:run  (Spring Boot 3.x, Java 17+)
+
+// --- Dependencies (add to pom.xml) ---
+// spring-boot-starter-web
+// spring-boot-starter-json (usually included)
+// No other dependencies needed
+
+import org.springframework.boot.*;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.*;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.cors.*;
+import org.springframework.web.filter.CorsFilter;
+import com.fasterxml.jackson.databind.*;
+import jakarta.servlet.*;
+import jakarta.servlet.annotation.WebFilter;
+import jakarta.servlet.http.*;
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@SpringBootApplication
+public class QueryMethodDemoApp {
+    public static void main(String[] args) {
+        SpringApplication.run(QueryMethodDemoApp.class, args);
+    }
+
+    // ---- CORS Configuration: Allow QUERY from browser cross-origin requests ----
+    @Bean
+    public CorsFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("*"));
+        // Include "QUERY" in the allowed methods list
+        config.setAllowedMethods(
+            List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "QUERY")
+        );
+        config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(
+            List.of("Accept-Query", "Content-Location", "Location", "ETag")
+        );
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return new CorsFilter(source);
+    }
+}
+
+// ---- QUERY Method Filter ----
+// @Component  -- annotate in actual Spring project
+class QueryFilter implements Filter {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+            throws IOException, ServletException {
+
+        HttpServletRequest  httpReq = (HttpServletRequest)  req;
+        HttpServletResponse httpRes = (HttpServletResponse) res;
+
+        if (!"QUERY".equalsIgnoreCase(httpReq.getMethod())) {
+            chain.doFilter(req, res);
+            return;
+        }
+
+        // --- RFC 10008: Validate Content-Type is present ---
+        String contentType = httpReq.getContentType();
+        if (contentType == null || contentType.isBlank()) {
+            httpRes.setStatus(400);
+            httpRes.setContentType("text/plain;charset=UTF-8");
+            httpRes.getWriter().write(
+                "400 Bad Request: QUERY method requires Content-Type header."
+            );
+            return;
+        }
+
+        // --- Read the query body ---
+        String queryBody = httpReq.getReader()
+            .lines().collect(Collectors.joining("\n"));
+
+        if (queryBody.isBlank()) {
+            httpRes.setStatus(400);
+            httpRes.setContentType("text/plain;charset=UTF-8");
+            httpRes.getWriter().write(
+                "400 Bad Request: QUERY body must not be empty."
+            );
+            return;
+        }
+
+        // --- Route by path ---
+        String path = httpReq.getRequestURI();
+        try {
+            if (path.startsWith("/api/products")) {
+                routeProductQuery(queryBody, httpRes);
+            } else if (path.startsWith("/api/users")) {
+                routeUserQuery(queryBody, httpRes);
+            } else {
+                httpRes.setStatus(405);
+                httpRes.setHeader("Allow", "GET, POST");
+                httpRes.getWriter().write(
+                    "405 Method Not Allowed: QUERY not supported on " + path
+                );
+            }
+        } catch (Exception e) {
+            httpRes.setStatus(500);
+            httpRes.getWriter().write("Internal error: " + e.getMessage());
+        }
+    }
+
+    private void routeProductQuery(String body, HttpServletResponse res)
+            throws IOException {
+        Map<?, ?> query = mapper.readValue(body, Map.class);
+
+        // Simulate service layer response
+        List<Map<String, Object>> products = List.of(
+            Map.of("id", 1, "name", "MacBook Pro M4",  "price_inr", 199000,
+                   "category", "laptop", "in_stock", true),
+            Map.of("id", 2, "name", "Dell XPS 15",     "price_inr", 128000,
+                   "category", "laptop", "in_stock", true),
+            Map.of("id", 3, "name", "Samsung 4K OLED", "price_inr", 89000,
+                   "category", "monitor", "in_stock", false)
+        );
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("query_received", query);
+        result.put("total", products.size());
+        result.put("results", products);
+
+        writeJsonResponse(res, result,
+            "\"application/json\", \"application/sql\"",
+            "max-age=120");
+    }
+
+    private void routeUserQuery(String body, HttpServletResponse res)
+            throws IOException {
+        Map<?, ?> query = mapper.readValue(body, Map.class);
+
+        List<Map<String, String>> users = List.of(
+            Map.of("id", "u1", "name", "Alice Sharma",  "role", "Engineer"),
+            Map.of("id", "u2", "name", "Ravi Kumar",    "role", "Manager"),
+            Map.of("id", "u3", "name", "Priya Nair",    "role", "Designer")
+        );
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("query_received", query);
+        result.put("total", users.size());
+        result.put("results", users);
+
+        writeJsonResponse(res, result,
+            "\"application/json\", \"application/jsonpath\"",
+            "max-age=60");
+    }
+
+    private void writeJsonResponse(HttpServletResponse res,
+                                    Object body,
+                                    String acceptQuery,
+                                    String cacheControl) throws IOException {
+        res.setStatus(200);
+        res.setContentType("application/json;charset=UTF-8");
+        // RFC 10008: Advertise supported query types
+        res.setHeader("Accept-Query", acceptQuery);
+        // Standard HTTP caching headers — QUERY responses are cacheable
+        res.setHeader("Cache-Control", cacheControl);
+        // ETag for conditional request support (simplified — use real hash in prod)
+        res.setHeader("ETag",
+            "\"" + System.currentTimeMillis() / 1000 + "\"");
+        mapper.writeValue(res.getWriter(), body);
+    }
+}
+
+// ---- Standard REST Controller for GET endpoints ----
+@RestController
+@RequestMapping("/api")
+class DemoController {
+
+    // GET /api/products — advertises QUERY support via Accept-Query header
+    @GetMapping("/products")
+    public ResponseEntity<Map<String, Object>> getProductsInfo() {
+        return ResponseEntity.ok()
+            .header("Accept-Query",
+                "\"application/json\", \"application/sql\"")
+            .body(Map.of(
+                "resource", "products",
+                "hint", "Send QUERY to this endpoint to filter products",
+                "supported_query_types", List.of("application/json", "application/sql")
+            ));
+    }
+
+    // GET /api/users — advertises QUERY support
+    @GetMapping("/users")
+    public ResponseEntity<Map<String, Object>> getUsersInfo() {
+        return ResponseEntity.ok()
+            .header("Accept-Query",
+                "\"application/json\", \"application/jsonpath\"")
+            .body(Map.of(
+                "resource", "users",
+                "hint", "Send QUERY to this endpoint to search users"
+            ));
+    }
+}
+
+================================================================================
+15. BEST PRACTICES AND ADOPTION GUIDE
+================================================================================
+
+15.1 FOR API DESIGNERS
+-----------------------
+1. Advertise QUERY support. Return Accept-Query on GET responses so clients can discover what query types are supported before sending a QUERY.
+2. Always require Content-Type on QUERY requests. Return 400 Bad Request if it is missing — this is mandated by RFC 10008.
+3. Keep QUERY responses stateless and side-effect-free. QUERY is marked safe; if your endpoint must log every query or update analytics, ensure these side effects do not affect subsequent QUERY results.
+4. Maintain backward compatibility. Keep your POST /search endpoint alive alongside QUERY /search. Older clients, libraries, and CDNs will continue to need POST until QUERY support is ubiquitous. Deprecate gradually.
+5. Version your query formats with Content-Type parameters: Content-Type: application/json;version=2
+
+
+15.2 FOR BACKEND DEVELOPERS
+----------------------------
+1. Do not use reflection hacks in production Java code. The HttpURLConnection reflection approach works but is fragile. Prefer Java 11+ HttpClient.
+2. Implement cache key generation correctly. The cache key MUST include the body hash, not just the URI. Use a cryptographic hash (SHA-256 minimum).
+3. Handle missing Content-Type explicitly. Return 400 Bad Request — do not attempt to guess the format.
+4. Add "QUERY" to your CORS allowed methods list. Without this, every browser cross-origin QUERY will return a CORS error after preflight.
+
+15.3 FOR SECURITY ENGINEERS
+----------------------------
+1. Update WAF rules. Add QUERY to body-inspection rules alongside POST, PUT, PATCH. Verify SQLi and XSS detection applies to QUERY request bodies.
+2. Audit cache key generation. Insist on full-body hashing. Test that two different QUERY bodies to the same URL produce different cache entries.
+3. Include QUERY endpoints in CSRF audits. Even though QUERY is "safe", a developer may accidentally add side effects. CSRF middleware should be configurable to protect QUERY endpoints that have side effects.
+4. Monitor for unexpected QUERY traffic during the transition period. Until QUERY is a deliberately adopted method in your stack, unexpected QUERY requests warrant investigation.
+
+================================================================================
+16. QUICK REFERENCE CHEAT SHEET
+================================================================================
+
+MINIMUM VALID QUERY REQUEST:
+  QUERY /resource HTTP/1.1
+  Host: example.com
+  Content-Type: <media-type>   ← REQUIRED by RFC 10008
+  <blank line>
+  <query body>                 ← REQUIRED; this IS the query
+
+METHOD PROPERTIES SUMMARY:
+  Safe       = YES  (no state change expected)
+  Idempotent = YES  (safe to auto-retry)
+  Cacheable  = YES  (with body-inclusive cache key)
+  Has body   = YES  (the body is the query)
+
+JAVA: SEND QUERY (Java 11+):
+  HttpRequest.newBuilder()
+      .uri(URI.create(url))
+      .method("QUERY", BodyPublishers.ofString(body))
+      .header("Content-Type", "application/json")
+      .build()
+
+SPRING BOOT SERVER: QUICKEST WORKAROUND:
+  Register a Filter, check request.getMethod().equals("QUERY"),
+  read the body, dispatch manually. Wait for PR #34993 for native support.
+
+CURL:
+  curl -X QUERY https://api.example.com/search \
+       -H 'Content-Type: application/json'     \
+       -d '{"filter": {"city": "Bengaluru"}}'
+
+BROWSER FETCH:
+  fetch('/api/search', {
+    method: 'QUERY',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filter: { city: 'Bengaluru' } })
+  })
+  // NOTE: Always triggers CORS preflight for cross-origin
+
+CACHE KEY FORMULA (RFC 10008 Section 2.7):
+  key = SHA256("QUERY" + uri + normalized_body + vary_headers)
+
+STATUS CODES FOR QUERY:
+  200 OK                  → Results in body
+  304 Not Modified        → Cached response still valid (conditional request)
+  303 See Other           → Query stored; GET Location to re-run
+  400 Bad Request         → Missing Content-Type, malformed body
+  405 Method Not Allowed  → Resource does not support QUERY
+  415 Unsupported Media   → Content-Type not in Accept-Query list
+  501 Not Implemented     → Server does not understand QUERY at all
+
+RESPONSE HEADERS TO SET:
+  Accept-Query:     "application/json", "application/jsonpath"
+  Cache-Control:    max-age=300
+  ETag:             "abc123"
+  Content-Location: /results/r-42     (GET here to retrieve stored results)
+  Location:         /stored-queries/q-7 (GET here to re-run query)
+
+FRAMEWORK READINESS (July 2026):
+  Node.js     ✅ Native (v22+)
+  Fastify     ✅ Opt-in via addHttpMethod
+  Go          ✅ Works with arbitrary method string
+  ASP.NET     ✅ .NET 11 Preview
+  Spring      ⚠️  Workaround only (PR #34993 pending)
+  curl        ✅ -X QUERY
+  Browsers    ⚠️  Works but always triggers CORS preflight
