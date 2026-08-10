@@ -548,11 +548,8 @@ APIs move data around, but where does that data actually live? Choosing the righ
 
 
 ✔️ Relational databases ─────────▶ (PostgreSQL, MySQL) store data in structured tables with defined relationships. Great for transactional data where consistency matters.
-
 ✔️ Document databases ─────────▶ (MongoDB) store data as flexible JSON-like documents. Good for varied or evolving schemas.
-
 ✔️ Key-value ─────────▶ stores (Redis, DynamoDB) are like hash maps, blazing fast for simple lookups by key.
-
 ✔️ Graph databases ─────────▶ (Neo4j) model relationships as first-class citizens, ideal for social networks or recommendation engines.
 
 ➤ In system design, we choose database based on the data model, query patterns, and scalability requirements.
@@ -590,10 +587,8 @@ The most common choice is between relational and non-relational databases. Let's
                +-------------+
 
 
-Choose SQL when ─────────▶ You need strong consistency (banking, inventory), complex queries with joins, well-defined schemas that rarely change, or ACID guarantees.
-
-Choose NoSQL when ─────────▶ You need horizontal scalability, your schema evolves frequently, you are dealing with high write throughput, or your data is naturally unstructured (logs, social media posts).
-
+✔️ Choose SQL when ─────────▶ You need strong consistency (banking, inventory), complex queries with joins, well-defined schemas that rarely change, or ACID guarantees.
+✔️ Choose NoSQL when ─────────▶ You need horizontal scalability, your schema evolves frequently, you are dealing with high write throughput, or your data is naturally unstructured (logs, social media posts).
 
 ➤ The reality is that most production systems use both.
 ➤ An e-commerce platform might store orders in PostgreSQL (needs ACID) and product catalog in MongoDB (flexible schema, read-heavy).
@@ -621,23 +616,23 @@ The trade-off: indexes speed up reads but slow down writes (every INSERT or UPDA
 When your database tables grow wide with dozens of columns, vertical partitioning splits them into narrower tables. Each partition holds a subset of columns, and they are joined by a shared key.
 
                          ┌───────────────────────────────┐
-                         │        EMPLOYEE TABLE          │
+                         │        EMPLOYEE TABLE         │
                          │───────────────────────────────│
-                         │ emp_id | name | age | salary | │
-                         │ address | phone | dept | DOJ | │
+                         │ emp_id | name | age | salary |│
+                         │ address| phone| dept| DOJ    |│
                          └───────────────────────────────┘
                                       │
                    Vertical Partition │ (Column-wise Split)
                                       ▼
         ┌───────────────────────────────┐     ┌───────────────────────────────┐
-        │        EMP_BASIC_INFO          │     │      EMP_CONFIDENTIAL_INFO     │
+        │        EMP_BASIC_INFO         │     │      EMP_CONFIDENTIAL_INFO    │
         │───────────────────────────────│     │───────────────────────────────│
-        │ emp_id (PK)                    │     │ emp_id (PK)                    │
-        │ name                           │     │ salary                         │
-        │ age                            │     │ address                        │
-        │ dept                           │     │ phone                          │
+        │ emp_id (PK)                   │     │ emp_id (PK)                   │
+        │ name                          │     │ salary                        │
+        │ age                           │     │ address                       │
+        │ dept                          │     │ phone                         │
         └───────────────────────────────┘     └───────────────────────────────┘
-                     │                                     │
+                     │                                    │
                      └──────────── JOIN ON emp_id ────────┘
 
 
@@ -645,7 +640,7 @@ When your database tables grow wide with dozens of columns, vertical partitionin
 ➤ By splitting the table, each query touches only the columns it actually needs, which means fewer bytes read from disk and faster responses.
 
 ➤ Vertical partitioning also improves security (billing data can have stricter access controls) and allows each partition to be optimized independently (different indexes, different storage engines).
-➤ In interviews, mention it when you have a table with many columns that are accessed in different contexts.
+👉 In interviews, mention it when you have a table with many columns that are accessed in different contexts.
 
 ➤ Sometimes the problem is not wide tables but too many rows.
 ➤ And sometimes the solution is not better querying, but smarter storage. What if you stored pre-computed results?
@@ -684,22 +679,22 @@ When your database tables grow wide with dozens of columns, vertical partitionin
        │            │ (MySQL /     │
        │            │ MongoDB)     │
        │            └──────┬───────┘
-       │                    │
-       │      2️⃣ Store Data │
-       │         in Cache   │
-       │◀───────────────────┘
+       │                   │
+       │     2️⃣ Store Data │
+       │         in Cache  │
+       │◀──────────────────┘
        │
        ▼
-┌──────────────┐
-│ Response     │
-│ Sent to      │
-│ Client       │
-└──────────────┘
+┌─────────────┐
+│ Response    │
+│ Sent to     │
+│ Client      │
+└─────────────┘
 
 ➤ The pattern shown above is called cache-aside (or lazy loading).
 ➤ The application checks the cache first. On a hit, it returns immediately.
 ➤ On a miss, it fetches from the database, stores the result in the cache, and then returns it.
-➤ Redis and Memcached are the most popular in-memory caches.
+➤ Redis and Memcached are the most popular in-memory caches.(For Detailed Read Redis_vs_Memcached.txt in this folder)
 
 ➤ The hard part of caching is invalidation: when the underlying data changes, the cache needs to be updated or cleared.
 ➤ Common strategies include TTL (time-to-live, data expires automatically), write-through (update cache and database together), and write-behind (update cache first, database later).
@@ -758,8 +753,7 @@ When your database tables grow wide with dozens of columns, vertical partitionin
             ✅ Faster Reads
             ❌ Data Duplication
 
-
-
+ 
 ➤ In the normalized version, displaying an order with the user's name and product title requires joining three tables.
 ➤ In the denormalized version, all the data is in one table, so a single read returns everything.
 ➤ The trade-off: you are storing user_name and product_title in the orders table, which means if a user changes their name, you need to update it in multiple places.
@@ -788,10 +782,10 @@ When your database tables grow wide with dozens of columns, vertical partitionin
      │
      │ Store File
      ▼
-┌──────────────────────────────┐
-│ Blob Store                   │
+┌───────────────────────────────────────┐
+│ Blob Store                            │
 │ :contentReference[oaicite:0]{index=0} │
-└────┬─────────────────────────┘
+└────┬──────────────────────────────────┘
      │ 2️⃣ Return URL
      ▼
 ┌──────────────┐
@@ -845,20 +839,20 @@ There are two fundamental approaches, and they are not mutually exclusive.
                     │ Upgrade
                     │
         ┌────────────────────────┐
-        │     Large Server        │
-        │ 64 CPU, 256GB RAM       │
+        │     Large Server       │
+        │ 64 CPU, 256GB RAM      │
         └──────────▲─────────────┘
-                    │ Upgrade
-                    │
+                   │ Upgrade
+                   │
         ┌────────────────────────┐
-        │    Medium Server        │
-        │ 8 CPU, 32GB RAM         │
+        │    Medium Server       │
+        │ 8 CPU, 32GB RAM        │
         └──────────▲─────────────┘
-                    │ Upgrade
-                    │
+                   │ Upgrade
+                   │
         ┌────────────────────────┐
-        │     Small Server        │
-        │ 2 CPU, 4GB RAM          │
+        │     Small Server       │
+        │ 2 CPU, 4GB RAM         │
         └────────────────────────┘
 
 ➤ Vertical scaling is attractive because it is simple.
@@ -880,24 +874,24 @@ There are two fundamental approaches, and they are not mutually exclusive.
                     ▲
                     │
         ┌──────────────────────────┐
-        │       Server N...         │
+        │       Server N...        │
         └──────────▲───────────────┘
-                    │
+                   │
         ┌──────────────────────────┐
-        │        Server 3           │
+        │        Server 3          │
         └──────────▲───────────────┘
-                    │
+                   │
         ┌──────────────────────────┐
-        │        Server 2           │
+        │        Server 2          │
         └──────────▲───────────────┘
-                    │
+                   │
         ┌──────────────────────────┐
-        │        Server 1           │
+        │        Server 1          │
         └──────────────────────────┘
                     ▲
                     │
              ┌──────────────┐
-             │ Load Balancer │
+             │ Load Balancer│
              └──────▲───────┘
                     │
              ┌──────────────┐
@@ -919,32 +913,28 @@ There are two fundamental approaches, and they are not mutually exclusive.
 
 
 3️⃣ Load Balancers
-A load balancer sits between clients and your server pool, distributing incoming requests so no single server gets overwhelmed.\
-It is the traffic cop of your system.
+A load balancer sits between clients and your server pool, distributing incoming requests so no single server gets overwhelmed. It is the traffic cop of your system.
 
                 Round Robin
              Least Connections
                     ▲
                     │
         ┌──────────────────────────┐
-        │       Load Balancer       │
-        │   (Health Check Fails)    │
+        │       Load Balancer      │
+        │   (Health Check Fails)   │
         └──────────▲───────▲───────┘
                    │       │
         ┌──────────┘       └──────────┐
-        │                              │
+        │                             │
 ┌──────────────┐               ┌──────────────┐
 │  Server 1    │               │  Server 2    │
 │  Healthy     │               │  Healthy     │
 └──────────────┘               └──────────────┘
-
             ❌ Traffic Not Sent
             ┌──────────────┐
             │  Server 3    │
             │  Down        │
             └──────────────┘
-
-
         ▲           ▲           ▲
         │           │           │
 ┌────────────┐  ┌────────────┐  ┌────────────┐
@@ -1061,17 +1051,17 @@ The CAP theorem states that a distributed system can only guarantee two out of t
 │ always       │     │ responds     │     │ Survives network │
 │              │     │              │     │ splits           │
 └──────┬───────┘     └──────┬───────┘     └─────────┬────────┘
-       │                    │                        │
-       └──────────────┬─────┴──────────────┬─────────┘
+       │                    │                       │
+       └──────────────┬─────┴──────────────┬────────┘
                       │                    │
                ┌──────────────┐     ┌──────────────┐
                │  CP Systems  │     │  AP Systems  │
                └──────┬───────┘     └──────┬───────┘
                       │                    │
       ┌───────────────┴──────────────┐     ┌────────────────────────┐
-      │ MongoDB                       │     │ Cassandra              │
-      │ HBase                         │     │ DynamoDB               │
-      │ Redis Cluster                 │     │ CouchDB                │
+      │ MongoDB                      │     │ Cassandra              │
+      │ HBase                        │     │ DynamoDB               │
+      │ Redis Cluster                │     │ CouchDB                │
       └──────────────────────────────┘     └────────────────────────┘
 
 
@@ -1105,9 +1095,9 @@ Instead of every request traveling to your origin server in Virginia, users get 
 └───────┬───────┘   └───────┬───────┘   └───────┬───────┘
         │                   │                   │
         ▼                   ▼                   ▼
-   ┌─────────┐         ┌─────────┐         ┌─────────┐
+   ┌─────────┐         ┌─────────┐         ┌───────────┐
    │ User UK │         │ User SEA│         │ User India│
-   └─────────┘         └─────────┘         └─────────┘
+   └─────────┘         └─────────┘         └───────────┘
 
 
 ➤ CDNs primarily serve static content: images, CSS, JavaScript, videos.
@@ -1145,18 +1135,17 @@ CLIENT                                  SERVER
 │                                       │
 │ POST /payments                        │
 │ Idempotency-Key: abc-123              │
-│ amount: $50                           │
+│ amount: $50                          │
 │ ───────────────────────────────────▶ │
-│                                       │
-│                                       │ Key abc-123 already seen
-│                                       │ Return stored result
-│                                       │
+│                                      │
+│                                      │ Key abc-123 already seen
+│                                      │ Return stored result
+│                                      │
 │ ◀─────────────────────────────────── │
 │ 200 OK                               │
 │ payment_id: 789                      │
 │ (same result, no duplicate charge)   │
-│                                       │
-
+│                                      │
 
 ➤ An idempotent operation produces the same result regardless of how many times you execute it.
 ➤ GET and DELETE are naturally idempotent (getting a resource twice returns the same thing, deleting an already-deleted resource is a no-op).
@@ -1182,7 +1171,7 @@ Microservices split the application into small, independent services, each respo
 │                  Monolith                    │
 │                                              │
 │  Users + Orders + Payments + Inventory       │
-│               (Single Codebase)               │
+│               (Single Codebase)              │
 │                                              │
 └───────────────────────┬──────────────────────┘
                         │
@@ -1227,45 +1216,42 @@ Synchronous communication (service A calls service B and waits for a response) c
 If service B is slow or down, service A suffers too. Message queues decouple services by introducing an intermediary that stores messages until the consumer is ready to process them.
 
 PRODUCER / QUEUE SIDE                     CONSUMER SIDE
-│                                         │
-│ 1️⃣ Send message                         │
-│                                         │
-│ ┌────────────────────┐                  │
-│ │ Producer            │                  │
-│ │ Order Service       │                  │
-│ └─────────┬──────────┘                  │
-│           │                              │
-│           ▼                              │
-│ ┌────────────────────────────────────┐  │
-│ │ Message Queue                      │  │
-│ │ Kafka / RabbitMQ / SQS             │  │
+│                                        │
+│ 1️⃣ Send message                        │
+│                                        │
+│ ┌────────────────────┐                 │
+│ │ Producer            │                │
+│ │ Order Service       │                │
+│ └─────────┬──────────┘                 │
+│           │                            │
+│           ▼                            │
+│ ┌───────────────────────────────────┐  │
+│ │ Message Queue                     │  │
+│ │ Kafka / RabbitMQ / SQS            │  │
 │ └─────────┬──────────┬──────────┬───┘  │
 │           │          │          │      │
 │           │          │          │      │
 │           ▼          ▼          ▼      │
-│                                         │
 │                         2️⃣ Deliver when consumer ready
-│                                         │
-│                   ┌──────────────────┐  │
-│                   │ Consumer         │  │
-│                   │ Email Service    │  │
-│                   └──────────────────┘  │
-│                                         │
+│                   ┌──────────────────┐ │
+│                   │ Consumer         │ │
+│                   │ Email Service    │ │
+│                   └──────────────────┘ │
+│                                        │
 │                         2️⃣ Deliver when consumer ready
-│                                         │
-│                   ┌──────────────────┐  │
-│                   │ Consumer         │  │
-│                   │ Inventory Service│  │
-│                   └──────────────────┘  │
-│                                         │
+│                                        │
+│                   ┌──────────────────┐ │
+│                   │ Consumer         │ │
+│                   │ Inventory Service│ │
+│                   └──────────────────┘ │
+│                                        │
 │                         2️⃣ Deliver when consumer ready
-│                                         │
-│                   ┌──────────────────┐  │
-│                   │ Consumer         │  │
-│                   │ Analytics Service│  │
-│                   └──────────────────┘  │
-
-
+│                                        │
+│                   ┌──────────────────┐ │
+│                   │ Consumer         │ │
+│                   │ Analytics Service│ │
+│                   └──────────────────┘ │
+└────────────────────────────────────────┘
 
 ➤ When a user places an order, the Order Service does not need to wait for the email to be sent, inventory to be updated, and analytics to be recorded.
 ➤ It drops a message on the queue and moves on. Each downstream service picks up the message at its own pace.
@@ -1308,7 +1294,6 @@ Under limit     Over limit
 │ Server       │
 └──────────────┘
 
-
 ➤ Common algorithms include Token Bucket (tokens refill at a fixed rate; each request costs a token), Sliding Window (count requests in a rolling time window), and Fixed Window (count requests in discrete time intervals).
 ➤ The rate limiter typically sits at the API gateway level and uses a fast store like Redis to track request counts per client.
 
@@ -1345,7 +1330,6 @@ Under limit     Over limit
                    │ Search Service │
                    └────────────────┘
 
-
 ➤ Without an API gateway, every service would need to implement authentication, rate limiting, and logging independently.
 ➤ The gateway centralizes these concerns.
 ➤ It also simplifies the client: instead of knowing the addresses of 20 services, the client knows one URL.
@@ -1374,8 +1358,8 @@ Before scaling, you need to understand how to measure it. You cannot improve wha
 Scalability is typically evaluated along these dimensions:
 
 1️⃣ Load Metrics
-| Metric                    | Description                                       | Example             |
-| ----------------------------- | ----------------------------------------------------- | ----------------------- |
+| Metric                    | Description                                           | Example                 |
+| --------------------------| ----------------------------------------------------- | ----------------------- |
 | Requests per second (RPS) | Number of API calls the system handles per second     | 10,000 RPS              |
 | Concurrent users          | Users active at the same time                         | 50,000 concurrent users |
 | Data volume               | Total amount of data stored or processed              | 10 TB storage           |
@@ -1386,8 +1370,8 @@ Scalability is typically evaluated along these dimensions:
 
 2️⃣ Performance Under Load
 A system scales well if it maintains acceptable performance as load increases. This is often measured by response time or latency.
-| Load Increase | Response Time | Behavior | What It Indicates                            |
-| ----------------- | ----------------- | ------------ | ------------------------------------------------ |
+| Load Increase | Response Time     | Behavior     | What It Indicates                                |
+| ------------- | ----------------- | ------------ | ------------------------------------------------ |
 | 1× (Baseline) | 50 ms             | Baseline     | Normal system operation                          |
 | 2×            | 55 ms             | Excellent    | Sublinear growth, caching & scaling working well |
 | 5×            | 70 ms             | Good         | System handling increased load efficiently       |
@@ -1462,8 +1446,7 @@ This is how companies like Google, Netflix, and Amazon handle billions of reques
 │ Server 1 │       │ Server 2 │       │ Server 3 │  ...  │ Server N │
 └──────────┘       └──────────┘       └──────────┘       └──────────┘
 
-Instead of one powerful server, you have many commodity servers working together.
-A load balancer distributes incoming requests across all servers.
+Instead of one powerful server, you have many commodity servers working together. A load balancer distributes incoming requests across all servers.
 
 
 🔄 Pros
@@ -1587,20 +1570,20 @@ The approach depends on your workload pattern:
                                      │
         ┌───────────────┬────────────┼─────────────┬───────────────┐
         │               │            │             │               │
-        ▼               ▼            ▼             ▼
+        ▼               ▼            ▼             ▼               ▼
 ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  ┌─────────────────┐
 │  Read-heavy  │  │ Write-heavy  │  │        Both        │  │ Need flexibility│
-└──────┬───────┘  └──────┬───────┘  └────────┬──────────┘  └─────────┬───────┘
-       │                 │                   │                         │
-       ▼                 ▼                   ▼                         ▼
+└──────┬───────┘  └──────┬───────┘  └────────┬───────────┘  └─────────┬───────┘
+       │                 │                   │                        │
+       ▼                 ▼                   ▼                        ▼
 ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐  ┌─────────────────┐
-│ Read Replicas│  │   Sharding   │  │ Sharding + Replicas│  │  Consider NoSQL  │
-└──────┬───────┘  └──────┬───────┘  └────────┬──────────┘  └─────────────────┘
+│ Read Replicas│  │   Sharding   │  │ Sharding + Replicas│  │  Consider NoSQL │
+└──────┬───────┘  └──────┬───────┘  └────────┬──────────┘   └─────────────────┘
        │                 │                   │
        ▼                 ▼                   ▼
 ┌──────────────────┐ ┌──────────────────────┐ ┌──────────────────────────┐
-│ Typical 10:1–100:1│ │ High write volume or │ │ High read + high write   │
-│ read:write ratio  │ │ large dataset        │ │ load at large scale      │
+│ Typical 10:1–100:1││ High write volume or │ │ High read + high write   │
+│ read:write ratio  ││ large dataset        │ │ load at large scale      │
 └──────────────────┘ └──────────────────────┘ └──────────────────────────┘
 
 1️⃣ Read Replicas
@@ -1622,15 +1605,14 @@ For read-heavy workloads (which most applications are), create copies of your da
         │ Read Replica │           │ Read Replica │
         │      1       │           │      2       │
         └──────┬───────┘           └──────┬───────┘
-               │                           │
+               │                          │
              Reads                       Reads
-               │                           │
-               └───────────────┬───────────┘
+               │                          │
+               └───────────────┬──────────┘
                                ▼
                          ┌──────────────┐
                          │ Application  │
                          └──────────────┘
-
 
 Primary handles all writes, replicas receive changes and serve reads.
 When to use ➡ Read-to-write ratio is 10:1 or higher, and writes are not the bottleneck.
@@ -1731,8 +1713,8 @@ NoSQL databases like Cassandra, MongoDB, and DynamoDB are designed for horizonta
   │ Redis Node 1 │       │ Redis Node 2 │       │ Redis Node 3 │
   └───────┬──────┘       └───────┬──────┘       └───────┬──────┘
          Miss                   Miss                   Miss
-           │                      │                      │
-           └───────────────┬──────┴──────┬──────────────┘
+           │                      │                     │
+           └───────────────┬──────┴─────────────────────┘
                            ▼
                      ┌──────────────┐
                      │   Database   │
@@ -1871,7 +1853,7 @@ Stage 5️⃣: Read Replicas (2M-10M users)
                            │
                            ▼
 ┌────────────┐        ┌──────────────┐
-│ App Servers│ ─────▶ │ Primary MySQL│
+│ App Servers│ ─────▶│ Primary MySQL│
 └──────┬─────┘        └──────┬───────┘
        │                     │
        │                 Replication
@@ -1888,8 +1870,6 @@ Stage 5️⃣: Read Replicas (2M-10M users)
                       └───────────┬───────┘
                                   ▼
                              App Servers
-
-
 
 ➤ Most applications are read-heavy, with reads outnumbering writes by 10:1 or more.
 ➤ Read replicas take advantage of this pattern.
@@ -1921,7 +1901,6 @@ App Servers
      │                 │                 │
 Users 0–999999   Users 1M–1.99M       Users 2M+
 
-
 ➤ Sharding is the final frontier of relational database scaling.
 ➤ Data is partitioned across multiple databases based on a shard key, typically user ID.
 ➤ Each shard handles a subset of users, distributing both read and write load.
@@ -1944,7 +1923,8 @@ This is where availability comes in.
 
 
 🔄 Measuring Availability
-Availability is typically expressed as a percentage of uptime over a given period. The formula is straightforward: Availability = Uptime / (Uptime + Downtime)
+Availability is typically expressed as a percentage of uptime over a given period.
+The formula is straightforward: Availability = Uptime / (Uptime + Downtime)
 
 ✅ For example, if a system was up for 364 days and down for 1 day in a year: Availability = 364 / 365 = 99.73%
 
@@ -1954,13 +1934,13 @@ Availability is typically expressed as a percentage of uptime over a given perio
 
 🔄 The "Nines" of Availability
 Availability is often described in terms of "nines." Each additional nine dramatically reduces allowed downtime:
-| Availability         | Downtime per Year | Downtime per Month | Downtime per Week |
-| ------------------------ | --------------------- | ---------------------- | --------------------- |
-| 99% (two nines)      | 3.65 days             | 7.3 hours              | 1.68 hours            |
-| 99.9% (three nines)  | 8.76 hours            | 43.8 minutes           | 10.1 minutes          |
-| 99.99% (four nines)  | 52.6 minutes          | 4.38 minutes           | 1.01 minutes          |
-| 99.999% (five nines) | 5.26 minutes          | 26.3 seconds           | 6.05 seconds          |
-| 99.9999% (six nines) | 31.5 seconds          | 2.63 seconds           | 0.6 seconds           |
+| Availability        | Downtime per Year| Downtime per Month | Downtime per Week |
+| --------------------| -----------------| -------------------| ------------------|
+| 99% (two nines)     | 3.65 days        | 7.3 hours          | 1.68 hours        |
+| 99.9% (three nines) | 8.76 hours       | 43.8 minutes       | 10.1 minutes      |
+| 99.99% (four nines) | 52.6 minutes     | 4.38 minutes       | 1.01 minutes      |
+| 99.999% (five nines)| 5.26 minutes     | 26.3 seconds       | 6.05 seconds      |
+| 99.9999% (six nines)| 31.5 seconds     | 2.63 seconds       | 0.6 seconds       |
 
 
 🔄 Availability in Series vs Parallel
