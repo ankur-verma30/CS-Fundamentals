@@ -1,0 +1,491 @@
+#############
+🔷 OSI Model
+#############
+When an engineer says "the network is broken," the next question should be: which part?
+
+The OSI (Open Systems Interconnection) model gives engineers a shared way to answer that. It splits network communication into seven layers, from raw electrical or radio signals all the way up to application protocols like HTTP and DNS.
+
+ISO published the model in the 1980s as a common vocabulary for network responsibilities.
+
+Most production systems do not implement OSI literally. The internet is usually described with the TCP/IP model, and modern protocols often blur neat OSI boundaries. TLS sits between application and transport. QUIC adds transport behavior on top of UDP. Service meshes often work at both Layer 4 and Layer 7.
+
+That is fine. The OSI model is still useful because it gives diagnostic clarity. It turns "the network is broken" into a sharper question: is this a cable problem, a local network problem, a routing problem, a TCP problem, a TLS problem, or an application problem?
+
+This chapter explains each layer and how to use the model when diagnosing failures.
+
+
+1️⃣ Why the OSI Model Exists
+Early networks were split across vendor-specific protocols and hardware. Systems from one vendor often could not communicate with systems from another.
+The OSI model gave the industry a shared vocabulary for the work every networked system has to do.
+The model does not tell everyone to implement networking the same way. It separates responsibilities:
+✔️ Layer 1 moves bits.
+✔️ Layer 2 delivers frames on a local link.
+✔️ Layer 3 routes packets between networks.
+✔️ Layer 4 delivers data between processes.
+✔️ Layers 5 through 7 cover long-lived communication, data format, and application protocols.
+That separation still matters. When an API call fails, "the network is broken" is too vague to be useful.
+
+A senior engineer narrows the problem: DNS lookup, TCP connection setup, TLS handshake, HTTP routing, load balancer policy, application timeout, or backend saturation. OSI helps structure that investigation.
+
++--------------------------------------------------+
+|              7 LAYERS OF OSI MODEL               |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 7: APPLICATION                             |
+| HTTP, DNS, SMTP, gRPC                            |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 6: PRESENTATION                            |
+| Encoding, Compression, Encryption               |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 5: SESSION                                 |
+| Session Lifecycle, Checkpoints                   |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 4: TRANSPORT                               |
+| TCP, UDP, Ports                                  |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 3: NETWORK                                 |
+| IP, ICMP, Routing                                |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 2: DATA LINK                               |
+| Ethernet, WiFi, MAC, Switches                    |
++--------------------------------------------------+
+                      |
+                      v
++--------------------------------------------------+
+| LAYER 1: PHYSICAL                                |
+| Signals, Cables, Radio, Optics                   |
++--------------------------------------------------+
+
+A common mnemonic from bottom to top is Please Do Not Throw Sausage Pizza Away: Physical, Data Link, Network, Transport, Session, Presentation, Application.
+
+#####################
+🔷 The Seven Layers
+#####################
+The model splits networking into seven layers, starting with raw signals and ending with the application protocol.
+
+Each layer handles one part of the job and passes the result to the next layer. A problem in a lower layer often appears as confusing behavior higher up.
+
+---------------------
+Layer 1️⃣: Physical
+---------------------
+The Physical layer moves raw bits over a physical medium.
+
+That medium might be electrical signals over copper, light through fiber, or radio waves for WiFi and cellular networks. Layer 1 knows nothing about HTTP, IP addresses, ports, or files. Its job is simply to move signals well enough that the next layer can understand them.
+
+Layer 1 concerns include:
+✔️ Cable and connector standards
+✔️ Optical transceivers, which convert electrical signals to light and back
+✔️ Radio frequencies and signal modulation
+✔️ Signal strength and noise
+✔️ Link speed negotiation
+✔️ Bit timing and synchronization
+
+================================================================================================================
+                              NETWORK COMMUNICATION OVER A MEDIUM
+================================================================================================================
+
++----------------+       +--------------------+       +----------------------+       +--------------------+       +----------------+
+|    HOST A      | ----> | NETWORK INTERFACE  | ----> |   COPPER / FIBER /   | ----> | NETWORK INTERFACE  | ----> |    HOST B      |
+|                |       |                    |       |        RADIO         |       |                    |       |                |
++----------------+       +--------------------+       +----------------------+       +--------------------+       +----------------+
+                                  |                            |                            |
+                                  |                            |                            |
+                            Sends/Receives              Physical Medium              Sends/Receives
+                              Signals                    Carries Signals                Signals
+
+================================================================================================================
+                                             NETWORK MEDIUMS
+================================================================================================================
+| MEDIUM                | WHAT TO WATCH                                                | TYPICAL USE                             |
+| Twisted-pair Ethernet | Cable category, length, interference, negotiated speed       | Offices, racks, edge devices            |
+| Fiber optic           |Transceiver type, wavelength, light level, connector quality  |Data centers, metro links,long-haul links|
+| WiFi                  | Signal strength, channel contention, interference, roaming   | Laptops, phones, local wireless access  |
+| Cellular              | Coverage, radio conditions, carrier NAT, variable latency    | Mobile and IoT clients                  |
+
+If Layer 1 is failing, higher-layer fixes do not help. A bad cable, failing fiber module, weak WiFi signal, or overloaded radio channel can look like random application instability until you check the link.
+
+
+---------------------
+Layer 2️⃣: Data Link
+---------------------
+The Data Link layer turns raw bits into frames and handles delivery on a local network. Ethernet and WiFi are common examples.
+Layer 2 introduces MAC addresses, which identify network interfaces on a local link. A MAC address is usually a 48-bit value such as 00:1A:2B:3C:4D:5E.
+Older explanations often call MAC addresses permanent hardware addresses. In real systems, they can be configured, virtualized, or randomized by operating systems, hypervisors, containers, and cloud platforms.
+
+Layer 2 responsibilities include:
+✔️ Framing data
+✔️ Local addressing with MAC addresses
+✔️ Detecting corrupted frames using checksums such as Ethernet FCS
+✔️ Controlling access to a shared medium
+✔️ Switching frames inside a local network
+
++------------+     +------------------+     +--------------+     +----------+     +----------------+     +------+
+|  PREAMBLE  | --> | DESTINATION MAC  | --> |  SOURCE MAC  | --> | ETHERTYPE| --> |    PAYLOAD     | --> | FCS  |
+|  8 bytes   |     |    6 bytes       |     |   6 bytes    |     | 2 bytes  |     |  46-1500 B     |     |4 B   |
++------------+     +------------------+     +--------------+     +----------+     +----------------+     +------+
+      |                    |                     |                  |                    |                  |
+      v                    v                     v                  v                    v                  v
+  Synchronize          Receiver's            Sender's           Identifies           Actual data       Error detection
+  receiver             MAC address           MAC address        upper protocol       being sent
+
+The common Layer 2 device is an Ethernet switch. A switch learns which MAC addresses are reachable on which ports and forwards frames accordingly. A hub, by contrast, repeats signals to every port and is essentially a Layer 1 device.
+
+Many modern switches also provide Layer 3 routing features, so "switch" describes a product class more than a strict OSI layer.
+
+Layer 2 is local. It can deliver a frame to another device on the same link or VLAN. To reach a different network, traffic needs Layer 3.
+
+| Concept     | Role                                                      |
+| ------------| --------------------------------------------------------- |
+| Frame       | Layer 2 data unit                                         |
+| MAC address | Local link address for an interface                       |
+| Switch      | Forwards frames within a local network                    |
+| VLAN        | Separates local Layer 2 networks on shared infrastructure |
+| FCS         | Detects corrupted Ethernet frames                         |
+
+
+-------------------
+Layer 3️⃣: Network
+-------------------
+The Network layer routes traffic between networks.
+It is what lets a laptop in Mumbai reach an API server in Virginia, or a service in one cloud VPC reach a database subnet in another region.
+
+Layer 3 uses IP addresses, most commonly IPv4 and IPv6. Routers look at the destination IP address and forward each packet one hop closer to its destination.
+
+Layer 3 responsibilities include:
+✔️ IP addressing
+✔️ Routing between networks
+✔️ Packet forwarding
+✔️ Network reachability and error reporting through ICMP
+✔️ Packet size discovery and fragmentation behavior
+
++----------------------+                              +----------------------+
+| Network A:           |                              | Network B:           |
+| 192.168.1.0/24       |                              | 10.0.0.0/24          |
+|                      |                              |                      |
+|  +----------------+  |                              |  +----------------+  |
+|  |     Client     |  |                              |  |    Service     |  |
+|  | 192.168.1.10   |  |                              |  |   10.0.0.5     |  |
+|  +----------------+  |                              |  +----------------+  |
++----------+-----------+                              +----------+-----------+
+           |                                                      ^
+           |                                                      |
+           | Packet to 10.0.0.5                                   |
+           +------------------------>                             |
+                                    |                              |
+                                    v                              |
+                           +-------------------+                   |
+                           |      ROUTER       |-------------------+
+                           |  Routing Table    |
+                           +-------------------+
+                                    |
+                                    |
+                                    +----> Forward toward destination
+
+MAC and IP addresses solve different problems. A MAC address is used for local delivery on one link. An IP address is used for routing across networks.
+Protocols such as ARP for IPv4 and Neighbor Discovery for IPv6 connect those two worlds by mapping an IP address to a local-link address.
+
+| Protocol           | Purpose                                                                  |
+| -------------------| ------------------------------------------------------------------------ |
+| IPv4 / IPv6        | Addressing and packet routing                                            |
+| ICMP / ICMPv6      | Error reporting and diagnostics, including `ping` and Path MTU Discovery |
+| ARP                | Maps IPv4 addresses to MAC addresses on a local network                  |
+| Neighbor Discovery | IPv6 neighbor resolution and router discovery                            |
+| OSPF / BGP         | Routing protocols used to exchange reachability information              |
+
+Be careful with the phrase "Layer 3 fragments packets." IPv4 supports fragmentation, but relying on it is a poor design choice. IPv6 routers do not fragment packets in transit.
+
+Modern systems usually depend on path MTU discovery, which means finding the largest packet size the path can handle, and on sensible payload sizing.
+
+Layer 3 gets a packet to the right host or network interface. It does not know which process on that host should receive the data. That is Layer 4.
+
+
+-------------------
+Layer 4️⃣: Transport
+-------------------
+The Transport layer delivers data between processes.
+
+Layer 4 adds ports, which identify the application endpoint on a host. A web server often listens on port 443. SSH commonly listens on port 22. A client usually uses a temporary source port chosen by the operating system.
+
+The combination of protocol, source IP, source port, destination IP, and destination port identifies a network flow.
+
+Layer 4 responsibilities include:
+✔️ Process-to-process delivery using ports
+✔️ Segmentation and reassembly
+✔️ Flow control
+✔️ Congestion control, depending on the protocol
+✔️ Reliability and ordering, depending on the protocol
+
+TCP and UDP are the protocols engineers deal with most often at this layer.
+
+| Feature            | TCP                                                           | UDP                                   |
+| Connection setup   | Uses a handshake                                              | No connection setup                   |
+| Delivery model     | Reliable, ordered byte stream while the connection is healthy | Best-effort datagrams                 |
+| Retransmission     | Built in                                                      | Not built in                          |
+| Ordering           | Preserved by TCP                                              | Not guaranteed                        |
+| Congestion control | Built in                                                      | Application or protocol must handle it|
+| Common use         | HTTP/1.1, HTTP/2, database connections, SSH            | DNS, QUIC, real-time media, some game traffic|
+
+TCP does not guarantee that an application operation succeeds. It guarantees reliable, ordered delivery of bytes while the connection is healthy.
+
+If a connection breaks mid-request, the application still needs timeouts, retries, idempotency, and duplicate handling.
+
+Before application data flows over TCP, the client and server establish a connection:
+CLIENT                                      SERVER
+  |                                           |
+  |                                           |
+  |              SYN (seq=x)                  |
+  |------------------------------------------>|
+  |                                           |
+  |        SYN-ACK (seq=y, ack=x+1)           |
+  |<------------------------------------------|
+  |                                           |
+  |          ACK (seq=x+1, ack=y+1)           |
+  |------------------------------------------>|
+  |                                           |
+  |===========================================|
+  |       TCP CONNECTION ESTABLISHED          |
+  |===========================================|
+
+Port numbers are divided into ranges:
+| Range       | Type                | Examples                                         |
+| ------------| ------------------- | ------------------------------------------------ |
+| 0–1023      | Well-known          | HTTP (80), HTTPS (443), SSH (22)                 |
+| 1024–49151  | Registered          | PostgreSQL (5432), MySQL (3306), custom services |
+| 49152–65535 | Dynamic / Ephemeral | Commonly assigned to client-side connections     |
+
+Layer 4 is also where many production load balancers operate. A Layer 4 load balancer forwards TCP or UDP flows without understanding HTTP routes, headers, cookies, or request bodies. That makes it fast and general, but less aware of application behavior.
+
+
+-------------------
+Layer 5️⃣: Session
+-------------------
+The Session layer describes how communication sessions are started, kept alive, resumed, and closed.
+
+In modern internet stacks, there is rarely a separate Session-layer implementation. Session behavior is usually handled by application protocols, libraries, frameworks, or infrastructure.
+
+Still, the concept is useful because production systems are full of session-like state:
+✔️ A TLS session can be resumed to reduce handshake cost.
+✔️ An HTTP client can reuse connections through keep-alive or connection pools.
+✔️ A gRPC stream can remain open for a long-running operation.
+✔️ A WebSocket connection can represent a live client session.
+✔️ A resumable upload can checkpoint progress after each chunk.
+
+================================================================================
+                         SESSION LIFECYCLE
+================================================================================
+
++------------------+       +------------------+       +----------------------+
+|    ESTABLISH     | ----> |     MAINTAIN     | ----> |   CHECKPOINT /       |
+|     SESSION      |       |     SESSION      |       |      RESUME           |
++------------------+       +------------------+       +----------------------+
+                                  |  ^                         |
+                                  |  |                         |
+                                  |  +-------------------------+
+                                  |      Recover after
+                                  |      interruption
+                                  |
+                                  |
+                                  +--------------------------> +------------------+
+                                                               |    TERMINATE     |
+                                                               |     SESSION      |
+                                                               +------------------+
+
+| Example           | Session Concern                            |
+| ------------------| ------------------------------------------ |
+| TLS               | Session resumption and key lifecycle       |
+| WebSocket         | Long-lived two-way connection              |
+| gRPC streaming    | Stream lifecycle and cancellation          |
+| SIP               | Voice and video session setup              |
+| Resumable uploads | Checkpoints and recovery after disconnects |
+
+For system design, the important question is what state exists across requests or connections, and what happens when that state is lost. Where the Layer 5 logic physically lives matters less than the lifecycle of that state.
+
+
+------------------------
+Layer 6️⃣: Presentation
+------------------------
+The Presentation layer deals with how data is represented before applications read it or after applications produce it.
+
+This includes encoding, serialization, compression, and encryption. Serialization means turning structured data, such as objects, into bytes that can be sent or stored.
+
+In real systems, these concerns are usually implemented inside application libraries or protocol stacks rather than as a separate layer. JSON, Protocol Buffers, Avro, and MessagePack define how structured data becomes bytes. UTF-8 defines how text becomes bytes. gzip, Brotli, and Zstandard reduce payload size. TLS encrypts data between endpoints.
+
+Use current terminology here: TLS is the modern protocol. SSL is obsolete and should not be used for new systems.
+
+===============================================================================================
+                              PRESENTATION / REPRESENTATION LAYER
+===============================================================================================
+
++----------------------+       +----------------------+       +----------------------+       +----------------------+
+|   APPLICATION DATA   | ----> |       SERIALIZE      | ----> |      COMPRESS        | ----> |       ENCRYPT        |
+|                      |       |                      |       |                      |       |                      |
+| Objects / Text /     |       | JSON / Protobuf      |       | gzip / Brotli / zstd |       | TLS                  |
+| Images               |       |                      |       |                      |       |                      |
++----------------------+       +----------------------+       +----------------------+       +----------------------+
+                                                                                                      |
+                                                                                                      v
+                                                                                          +----------------------+
+                                                                                          |   BYTES FOR          |
+                                                                                          |     TRANSPORT        |
+                                                                                          |                      |
+                                                                                          | Byte Stream or       |
+                                                                                          | Datagrams            |
+                                                                                          +----------------------+
+
+| Function       | Examples                                  |
+| ---------------| ----------------------------------------- |
+| Serialization  | JSON, Protocol Buffers, Avro, MessagePack |
+| Text encoding  | UTF-8                                     |
+| Compression    | gzip, Brotli, zstd                        |
+| Encryption     | TLS 1.2, TLS 1.3                          |
+| Media encoding | JPEG, PNG, AV1, H.264                     |
+
+
+Presentation choices have real operational consequences. A verbose JSON payload can dominate latency on mobile networks. A badly chosen compression setting can save bandwidth but burn too much CPU. A TLS misconfiguration can break clients or weaken security. A schema change can corrupt data if producers and consumers are not rolled out carefully.
+
+Layer 7️⃣: Application
+The Application layer is where application protocols define meaning.
+
+This is the layer your software most directly speaks: HTTP requests, DNS queries, SMTP messages, SSH sessions, gRPC calls, Kafka protocol requests, and database wire protocols.
+
+Layer 7 covers the protocol surface applications use to communicate. That is different from the business logic those applications implement.
+
+                    APPLICATION LAYER PROTOCOLS
+                              |
+      +-----------------------+-----------------------+---------- +-----------------------+-----------------+
+      |                       |                       |           |                       |                 |
+      v                       v                       v           v                       v                 v
++-------------+         +-------------+         +-------------+   +-------------+         +-------------+   +------------------+
+| HTTP/HTTPS  |         |    gRPC     |         |     DNS     |   |  SMTP/IMAP  |         |     SSH     |   | PostgreSQL/MySQL |
+| Web & APIs  |         |Service-to-  |         |    Name     |   |    Email    |         |   Remote    |   |    Database      |
+|             |         |  Service    |         | Resolution  |   |             |         |   Access    |   |    Protocols     |
++-------------+         +-------------+         +-------------+   +-------------+         +-------------+   +------------------+
+
+| Protocol   | Common Port | Purpose                                        |
+| -----------| ------------| ---------------------------------------------- |
+| HTTP       |          80 | Web and API traffic without TLS                |
+| HTTPS      |         443 | HTTP over TLS; also commonly HTTP/2 and HTTP/3 |
+| SSH        |          22 | Secure remote access                           |
+| SMTP       |          25 | Server-to-server email transfer                |
+| DNS        |          53 | Domain name resolution                         |
+| PostgreSQL |        5432 | PostgreSQL database connections                |
+| MySQL      |        3306 | MySQL database connections                     |
+
+Layer 7 is where API gateways, reverse proxies, WAFs, and many service meshes make richer decisions. They can route by hostname or path, enforce authentication, inspect headers, apply rate limits, terminate TLS, retry selected requests, and emit application-level metrics.
+
+For an AI product, Layer 7 might be an HTTPS endpoint for chat completions, a gRPC interface to an inference service, a streaming response over Server-Sent Events, or a database protocol call to a vector store. The network layers below still matter, but Layer 7 defines the contract the application relies on.
+
+######################################
+🔷 Encapsulation and Decapsulation
+######################################
+When an application sends data, each lower layer adds its own wrapper. This is encapsulation.
+
+For example, an HTTPS request from a client to an API service might flow like this:
+✔️ The Application layer creates an HTTP request.
+✔️ The Presentation layer formats, compresses, and encrypts data as needed.
+✔️ The Transport layer adds a TCP header, creating a TCP segment. For HTTP/3, QUIC runs over UDP instead.
+✔️ The Network layer adds an IP header, creating an IP packet.
+✔️ The Data Link layer adds an Ethernet or WiFi header and trailer, creating a frame.
+✔️ The Physical layer sends bits as electrical, optical, or radio signals.
+
+On the receiving side, decapsulation happens in reverse. Each layer reads and removes the wrapper it understands, then passes the remaining data upward. In plain English, the receiver unwraps the data one layer at a time.
+
+Each layer names its data unit differently:
+This naming is useful during debugging. Packet captures, load balancer logs, TCP resets, TLS alerts, HTTP status codes, and application exceptions all describe different layers of the same communication path.
+
+
+###################
+🔷 OSI vs. TCP/IP
+###################
+The OSI model is a reference model. The TCP/IP model is closer to how the internet is described and implemented in practice.
+
+TCP/IP usually has four layers:
+✔️ Application
+✔️ Transport
+✔️ Internet
+✔️ Network Access
+
+    OSI MODEL                                      TCP/IP MODEL
+┌─────────────┐                                      ┌─────────────┐
+│ Application │──┐                              ┌──► │ Application │
+├─────────────┤  │                              │    └─────────────┘
+│ Presentation│──┼──────────────────────────────┘
+├─────────────┤  │
+│ Session     │──┘
+├─────────────┤
+│ Transport   │───────────────────────────────────► ┌─────────────┐
+├─────────────┤                                     │  Transport  │
+│ Network     │───────────────────────────────────► ├─────────────┤
+├─────────────┤                                     │   Internet  │
+│ Data Link   │──┐                                  ├─────────────┤
+├─────────────┤  ├────────────────────────────────► │Network Access│
+│ Physical    │──┘                                  └─────────────┘
+└─────────────┘
+
+| OSI Layers                           | TCP/IP Layer   | Examples                         |
+| -------------------------------------| ---------------| -------------------------------- |
+| Application + Presentation + Session | Application    | HTTP, DNS, SSH, TLS, gRPC        |
+| Transport                            | Transport      | TCP, UDP, QUIC behavior over UDP |
+| Network                              | Internet       | IPv4, IPv6, ICMP                 |
+| Data Link + Physical                 | Network Access | Ethernet, WiFi, fiber, cellular  |
+
+The mapping is approximate. Real protocols do not always fit perfectly into one box.
+
+ARP and IPv6 Neighbor Discovery sit between local-link and network concerns. TLS is usually discussed near the application layer, but operationally it sits between application protocols and transport. QUIC is carried inside UDP datagrams but adds reliability, congestion control, streams, and TLS 1.3.
+
+Layer models are useful mental models, not strict laws. These crossovers are expected.
+
+
+#######################################
+🔷 How Engineers Use OSI in Practice
+#######################################
+The OSI model is most useful when diagnosing failures or choosing infrastructure.
+
+🔄 Troubleshooting by Layer
+If a client cannot reach a service, work from concrete signals instead of guessing.
+
+| Symptom                              | Likely Layer to Check          | Examples                                                                          |
+| Link down, no carrier, weak signal   | Layer 1                        | Cable, transceiver, WiFi signal, radio interference                               |
+| Host cannot reach local gateway      | Layer 2                        | VLAN, switch port, MAC table, ARP or Neighbor Discovery                           |
+| Traffic cannot cross networks        | Layer 3                        | Route tables, security groups, NACLs, BGP, ICMP, MTU                              |
+| Connection refused or timed out      | Layer 4                        |Port binding,firewall, load balancer listener, TCP reset                           |
+| TLS handshake fails                  | Layer 6 / Application boundary | Certificate, SNI, TLS settings, protocol version, mTLS                            |
+| HTTP returns 401, 404, 429, or 503   | Layer 7                        | Auth, routing, rate limits, internal service health, application capacity         |
+| Request starts but stalls under load | Multiple layers                | Congestion, connection pool exhaustion, head-of-line blocking, backend saturation |
+
+This layered thinking prevents expensive wrong fixes. A team should not rewrite retry logic before checking whether a load balancer is closing idle connections. It should not tune database queries before confirming DNS, routing, and TLS are healthy.
+
+🔄 Infrastructure Choices
+Layer awareness also affects design choices:
+✔️ A Layer 4 load balancer is a good fit when you need fast TCP or UDP forwarding and do not need request inspection.
+✔️ A Layer 7 load balancer or reverse proxy is better when routing depends on hostnames, paths, headers, authentication, or request-level policy.
+✔️ A service mesh often combines Layer 4 connection handling with Layer 7 policy, telemetry, retries, and mTLS.
+✔️ A CDN works heavily at Layer 7 but depends on DNS, routing, TLS, caching, and edge network placement.
+✔️ A database connection pool is an application concern, but failures often surface as Layer 4 connection exhaustion or timeouts.
+
+
+For example, consider a model inference API:
+✔️ DNS resolves api.example.com to an edge or load balancer.
+✔️ The client establishes a TCP or QUIC connection.
+✔️ TLS authenticates the server and encrypts traffic.
+✔️ HTTP routes the request to an inference service.
+✔️ The service may stream tokens back over HTTP chunking, Server-Sent Events, WebSockets, or gRPC streaming.
+✔️ Backend services may call vector databases, object storage, queues, and telemetry systems over their own protocols.
+Every step can fail differently. OSI gives you a clean way to reason about those failures without pretending the stack is simpler than it is.
